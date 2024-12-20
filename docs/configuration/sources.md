@@ -7,7 +7,7 @@ Blink provides a sources interface, modelled after LSPs, for getting completion 
 
 ## Providers
 
-Sources are configured via the `sources.providers` table, where each `id` (`key`) must have a `name` and `module` field. The `id` (`key`) may be used in the `sources.default/per_filetype/cmdline` to enable the source.
+Sources are configured via the `sources.providers` table, where each `id` (`key`) must have a `name` and `module` field. The `id` may be used in the `sources.default/per_filetype/cmdline` to enable the source.
 
 ```lua
 sources = {

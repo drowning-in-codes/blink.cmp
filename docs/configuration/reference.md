@@ -7,7 +7,7 @@
 enabled = function() return vim.bo.buftype ~= "prompt" and vim.b.completion ~= false end,
 
 -- See the "keymap" page for more information
-keymap = 'default',
+keymap = { preset = 'default' },
 ```
 
 ## Snippets
