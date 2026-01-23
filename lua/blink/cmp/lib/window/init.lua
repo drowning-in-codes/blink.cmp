@@ -1,13 +1,18 @@
 -- TODO: The scrollbar and redrawing logic should be done by wrapping the functions that would
 -- trigger a redraw or update the window
 
+local utils = require('blink.cmp.lib.window.utils')
+
 --- @class blink.cmp.WindowOptions
 --- @field min_width? number
 --- @field max_width? number
 --- @field max_height? number
 --- @field cursorline? boolean
+--- @field cursorline_priority? number
+--- @field default_border? blink.cmp.WindowBorder
 --- @field border? blink.cmp.WindowBorder
 --- @field wrap? boolean
+--- @field linebreak? boolean
 --- @field winblend? number
 --- @field winhighlight? string
 --- @field scrolloff? number
@@ -19,9 +24,10 @@
 --- @field buf? number
 --- @field config blink.cmp.WindowOptions
 --- @field scrollbar? blink.cmp.Scrollbar
+--- @field cursor_line blink.cmp.CursorLine
 --- @field redraw_queued boolean
 ---
---- @field new fun(config: blink.cmp.WindowOptions): blink.cmp.Window
+--- @field new fun(name: string, config: blink.cmp.WindowOptions): blink.cmp.Window
 --- @field get_buf fun(self: blink.cmp.Window): number
 --- @field get_win fun(self: blink.cmp.Window): number
 --- @field is_open fun(self: blink.cmp.Window): boolean
@@ -30,7 +36,7 @@
 --- @field set_option_value fun(self: blink.cmp.Window, option: string, value: any)
 --- @field update_size fun(self: blink.cmp.Window)
 --- @field get_content_height fun(self: blink.cmp.Window): number
---- @field get_border_size fun(self: blink.cmp.Window, border?: 'none' | 'single' | 'double' | 'rounded' | 'solid' | 'shadow' | 'padded' | string[]): { vertical: number, horizontal: number, left: number, right: number, top: number, bottom: number }
+--- @field get_border_size fun(self: blink.cmp.Window, border?: 'none' | 'single' | 'double' | 'rounded' | 'solid' | 'shadow' | 'bold' | 'padded' | string[]): { vertical: number, horizontal: number, left: number, right: number, top: number, bottom: number }
 --- @field expand_border_chars fun(border: string[]): string[]
 --- @field get_height fun(self: blink.cmp.Window): number
 --- @field get_content_width fun(self: blink.cmp.Window): number
@@ -40,16 +46,17 @@
 --- @field set_height fun(self: blink.cmp.Window, height: number)
 --- @field set_width fun(self: blink.cmp.Window, width: number)
 --- @field set_win_config fun(self: blink.cmp.Window, config: table)
---- @field get_vertical_direction_and_height fun(self: blink.cmp.Window, direction_priority: ("n" | "s")[], max_height: number): { height: number, direction: 'n' | 's' }?
+--- @field get_vertical_direction_and_height fun(self: blink.cmp.Window, direction_priority: blink.cmp.WindowDirectionPriority, max_height: number): { height: number, direction: 'n' | 's' }?
 --- @field get_direction_with_window_constraints fun(self: blink.cmp.Window, anchor_win: blink.cmp.Window, direction_priority: ("n" | "s" | "e" | "w")[], desired_min_size?: { width: number, height: number }): { width: number, height: number, direction: 'n' | 's' | 'e' | 'w' }?
 --- @field redraw_if_needed fun(self: blink.cmp.Window)
+
+--- @alias blink.cmp.WindowDirectionPriority ("n"|"s")[] | fun(): ("n"|"s")[]
 
 --- @type blink.cmp.Window
 --- @diagnostic disable-next-line: missing-fields
 local win = {}
 
---- @param config blink.cmp.WindowOptions
-function win.new(config)
+function win.new(name, config)
   local self = setmetatable({}, { __index = win })
 
   self.id = nil
@@ -59,8 +66,9 @@ function win.new(config)
     max_width = config.max_width,
     max_height = config.max_height or 10,
     cursorline = config.cursorline or false,
-    border = config.border or 'none',
+    border = utils.pick_border(config.border, config.default_border),
     wrap = config.wrap or false,
+    linebreak = config.linebreak or false,
     winblend = config.winblend or 0,
     winhighlight = config.winhighlight or 'Normal:NormalFloat,FloatBorder:NormalFloat',
     scrolloff = config.scrolloff or 0,
@@ -68,6 +76,8 @@ function win.new(config)
     filetype = config.filetype,
   }
   self.redraw_queued = false
+
+  self.cursor_line = require('blink.cmp.lib.window.cursor_line').new(name, config.cursorline_priority)
 
   if self.config.scrollbar then
     -- Enable the gutter if there's no border, or the border is a space
@@ -118,14 +128,17 @@ function win:open()
   vim.api.nvim_set_option_value('winblend', self.config.winblend, { win = self.id })
   vim.api.nvim_set_option_value('winhighlight', self.config.winhighlight, { win = self.id })
   vim.api.nvim_set_option_value('wrap', self.config.wrap, { win = self.id })
+  vim.api.nvim_set_option_value('linebreak', self.config.linebreak, { win = self.id })
   vim.api.nvim_set_option_value('foldenable', false, { win = self.id })
   vim.api.nvim_set_option_value('conceallevel', 2, { win = self.id })
   vim.api.nvim_set_option_value('concealcursor', 'n', { win = self.id })
   vim.api.nvim_set_option_value('cursorlineopt', 'line', { win = self.id })
-  vim.api.nvim_set_option_value('cursorline', self.config.cursorline, { win = self.id })
+  vim.api.nvim_set_option_value('cursorline', false, { win = self.id })
   vim.api.nvim_set_option_value('scrolloff', self.config.scrolloff, { win = self.id })
   vim.api.nvim_set_option_value('filetype', self.config.filetype, { buf = self.buf })
+  vim.api.nvim_set_option_value('modifiable', false, { buf = self.buf })
 
+  self.cursor_line:update(self.id)
   if self.scrollbar then self.scrollbar:update(self.id) end
   self:redraw_if_needed()
 end
@@ -267,7 +280,7 @@ function win.get_cursor_screen_position()
   -- default
   local cursor_line, cursor_column = unpack(vim.api.nvim_win_get_cursor(0))
   -- todo: convert cursor_column to byte index
-  local pos = vim.fn.screenpos(vim.api.nvim_win_get_number(0), cursor_line, cursor_column)
+  local pos = vim.fn.screenpos(0, cursor_line, cursor_column)
 
   return {
     distance_from_top = pos.row - 1,
@@ -320,6 +333,7 @@ end
 --- Gets the direction with the most space available, prioritizing the directions in the order of the
 --- direction_priority list
 function win:get_vertical_direction_and_height(direction_priority, max_height)
+  if type(direction_priority) == 'function' then direction_priority = direction_priority() end
   local constraints = self.get_cursor_screen_position()
   local border_size = self:get_border_size()
   local function get_distance(direction)

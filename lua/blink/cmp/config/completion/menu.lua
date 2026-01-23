@@ -9,9 +9,10 @@ local validate = require('blink.cmp.config.utils').validate
 --- @field winhighlight string
 --- @field scrolloff number Keep the cursor X lines away from the top/bottom of the window
 --- @field scrollbar boolean Note that the gutter will be disabled when border ~= 'none'
---- @field direction_priority ("n" | "s")[] Which directions to show the window, falling back to the next direction when there's not enough space
+--- @field direction_priority ("n" | "s")[]| fun(): ("n" | "s")[] Which directions to show the window, or a function returning such a table, falling back to the next direction when there's not enough space
 --- @field order blink.cmp.CompletionMenuOrderConfig TODO: implement
 --- @field auto_show boolean | fun(ctx: blink.cmp.Context, items: blink.cmp.CompletionItem[]): boolean Whether to automatically show the window when new completion items are available
+--- @field auto_show_delay_ms number | fun(ctx: blink.cmp.Context, items: blink.cmp.CompletionItem[]): number Delay before showing the completion menu
 --- @field cmdline_position fun(): number[] Screen coordinates (0-indexed) of the command line
 --- @field draw blink.cmp.Draw Controls how the completion items are rendered on the popup window
 
@@ -25,7 +26,7 @@ local window = {
     enabled = true,
     min_width = 15,
     max_height = 10,
-    border = 'none',
+    border = nil,
     winblend = 0,
     winhighlight = 'Normal:BlinkCmpMenu,FloatBorder:BlinkCmpMenuBorder,CursorLine:BlinkCmpMenuSelection,Search:None',
     -- keep the cursor X lines away from the top/bottom of the window
@@ -41,6 +42,8 @@ local window = {
 
     -- Whether to automatically show the window when new completion items are available
     auto_show = true,
+    -- Delay before showing the completion menu
+    auto_show_delay_ms = 0,
 
     -- Screen coordinates of the command line
     cmdline_position = function()
@@ -60,7 +63,12 @@ local window = {
       padding = 1,
       -- Gap between columns
       gap = 1,
-      treesitter = {}, -- Use treesitter to highlight the label text of completions from these sources
+      -- Priority of the cursorline highlight, setting this to 0 will render it below other highlights
+      cursorline_priority = 10000,
+      -- Appends an indicator to snippets label, `'~'` by default
+      snippet_indicator = '~',
+      -- Use treesitter to highlight the label text of completions from these sources
+      treesitter = {},
       -- Components to render, grouped by column
       columns = { { 'kind_icon' }, { 'label', 'label_description', gap = 1 } },
       -- Definitions for possible components to render. Each component defines:
@@ -72,7 +80,8 @@ local window = {
         kind_icon = {
           ellipsis = false,
           text = function(ctx) return ctx.kind_icon .. ctx.icon_gap end,
-          highlight = function(ctx) return ctx.kind_hl end,
+          -- Set the highlight priority to 20000 to beat the cursorline's default priority of 10000
+          highlight = function(ctx) return { { group = ctx.kind_hl, priority = 20000 } } end,
         },
 
         kind = {
@@ -136,7 +145,7 @@ function window.validate(config)
     enabled = { config.enabled, 'boolean' },
     min_width = { config.min_width, 'number' },
     max_height = { config.max_height, 'number' },
-    border = { config.border, { 'string', 'table' } },
+    border = { config.border, { 'string', 'table' }, true },
     winblend = { config.winblend, 'number' },
     winhighlight = { config.winhighlight, 'string' },
     scrolloff = { config.scrolloff, 'number' },
@@ -144,15 +153,17 @@ function window.validate(config)
     direction_priority = {
       config.direction_priority,
       function(direction_priority)
+        if type(direction_priority) == 'function' then direction_priority = direction_priority() end
         for _, direction in ipairs(direction_priority) do
           if not vim.tbl_contains({ 'n', 's' }, direction) then return false end
         end
         return true
       end,
-      'one of: "n", "s"',
+      'one of: "n", "s", or a function returning such a table',
     },
     order = { config.order, 'table' },
     auto_show = { config.auto_show, { 'boolean', 'function' } },
+    auto_show_delay_ms = { config.auto_show_delay_ms, { 'number', 'function' } },
     cmdline_position = { config.cmdline_position, 'function' },
     draw = { config.draw, 'table' },
   }, config)
@@ -185,9 +196,11 @@ function window.validate(config)
         if type(padding[1]) == 'number' and type(padding[2]) == 'number' then return true end
         return false
       end,
-      'a number or a tuple of 2 numbers (i.e. [1, 2])',
+      'a number or a tuple of 2 numbers, e.g. [1, 2]',
     },
     gap = { config.draw.gap, 'number' },
+    cursorline_priority = { config.draw.cursorline_priority, 'number' },
+    snippet_indicator = { config.draw.snippet_indicator, 'string' },
 
     treesitter = { config.draw.treesitter, 'table' },
 

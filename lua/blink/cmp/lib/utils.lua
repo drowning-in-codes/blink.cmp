@@ -33,11 +33,15 @@ end
 --- @param arr T[]
 --- @return T[]
 function utils.deduplicate(arr)
-  local hash = {}
+  local seen = {}
+  local result = {}
   for _, v in ipairs(arr) do
-    hash[v] = true
+    if not seen[v] then
+      seen[v] = true
+      table.insert(result, v)
+    end
   end
-  return vim.tbl_keys(hash)
+  return result
 end
 
 function utils.schedule_if_needed(fn)
@@ -46,27 +50,6 @@ function utils.schedule_if_needed(fn)
   else
     fn()
   end
-end
-
---- Flattens an arbitrarily deep table into a  single level table
---- @param t table
---- @return table
-function utils.flatten(t)
-  if t[1] == nil then return t end
-
-  local flattened = {}
-  for _, v in ipairs(t) do
-    if type(v) == 'table' and vim.tbl_isempty(v) then goto continue end
-
-    if v[1] == nil then
-      table.insert(flattened, v)
-    else
-      vim.list_extend(flattened, utils.flatten(v))
-    end
-
-    ::continue::
-  end
-  return flattened
 end
 
 --- Returns the index of the first occurrence of the value in the array
@@ -162,5 +145,66 @@ function utils.with_no_autocmds(cb)
   if not success then error(result_or_err) end
   return result_or_err
 end
+
+--- Disable redraw in neovide for the duration of the callback
+--- Useful for preventing the cursor from jumping to the top left during `vim.fn.complete`
+--- @generic T
+--- @param fn fun(): T
+--- @return T
+function utils.defer_neovide_redraw(fn)
+  -- don't do anything special when not running inside neovide
+  if not _G.neovide or not neovide.enable_redraw or not neovide.disable_redraw then return fn() end
+
+  neovide.disable_redraw()
+
+  local success, result = pcall(fn)
+
+  -- make sure that the screen is updated and the mouse cursor returned to the right position before re-enabling redrawing
+  pcall(vim.api.nvim__redraw, { cursor = true, flush = true })
+
+  neovide.enable_redraw()
+
+  if not success then error(result) end
+  return result
+end
+
+---@type boolean Have we passed UIEnter?
+local _ui_entered = vim.v.vim_did_enter == 1 -- technically for VimEnter, but should be good enough for when we're lazy loaded
+---@type function[] List of notifications.
+local _notification_queue = {}
+
+--- Fancy notification wrapper.
+--- @param msg [string, string?][]
+--- @param lvl? number
+function utils.notify(msg, lvl)
+  local header_hl = 'DiagnosticVirtualTextWarn'
+  if lvl == vim.log.levels.ERROR then
+    header_hl = 'DiagnosticVirtualTextError'
+  elseif lvl == vim.log.levels.INFO then
+    header_hl = 'DiagnosticVirtualTextInfo'
+  end
+
+  table.insert(msg, 1, { ' blink.cmp ', header_hl })
+  table.insert(msg, 2, { ' ' })
+
+  local echo_opts = { verbose = false }
+  if lvl == vim.log.levels.ERROR and vim.fn.has('nvim-0.11') == 1 then echo_opts.err = true end
+  if _ui_entered then
+    vim.schedule(function() vim.api.nvim_echo(msg, true, echo_opts) end)
+  else
+    -- Queue notification for the UIEnter event.
+    table.insert(_notification_queue, function() vim.api.nvim_echo(msg, true, echo_opts) end)
+  end
+end
+
+vim.api.nvim_create_autocmd('UIEnter', {
+  callback = function()
+    _ui_entered = true
+
+    for _, fn in ipairs(_notification_queue) do
+      pcall(fn)
+    end
+  end,
+})
 
 return utils

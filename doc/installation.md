@@ -25,7 +25,7 @@ Note: By default, Blink will attempt to use the rust implementation of the fuzzy
   dependencies = { 'rafamadriz/friendly-snippets' },
 
   -- use a release tag to download pre-built binaries
-  version = '*',
+  version = '1.*',
   -- AND/OR build from source, requires nightly: https://rust-lang.github.io/rustup/concepts/channels.html#working-with-nightly-rust
   -- build = 'cargo build --release',
   -- If you use nix, you can build from source using latest nightly rust with:
@@ -34,27 +34,28 @@ Note: By default, Blink will attempt to use the rust implementation of the fuzzy
   ---@module 'blink.cmp'
   ---@type blink.cmp.Config
   opts = {
-    -- 'default' (recommended) for mappings similar to built-in completions (C-y to accept, C-n/C-p for up/down)
-    -- 'super-tab' for mappings similar to vscode (tab to accept, arrow keys for up/down)
-    -- 'enter' for mappings similar to 'super-tab' but with 'enter' to accept
+    -- 'default' (recommended) for mappings similar to built-in completions (C-y to accept)
+    -- 'super-tab' for mappings similar to vscode (tab to accept)
+    -- 'enter' for enter to accept
+    -- 'none' for no mappings
     --
     -- All presets have the following mappings:
     -- C-space: Open menu or open docs if already open
+    -- C-n/C-p or Up/Down: Select next/previous item
     -- C-e: Hide menu
-    -- C-k: Toggle signature help
+    -- C-k: Toggle signature help (if signature.enabled = true)
     --
-    -- See the full "keymap" documentation for information on defining your own keymap.
+    -- See :h blink-cmp-config-keymap for defining your own keymap
     keymap = { preset = 'default' },
 
     appearance = {
-      -- Sets the fallback highlight groups to nvim-cmp's highlight groups
-      -- Useful for when your theme doesn't support blink.cmp
-      -- Will be removed in a future release
-      use_nvim_cmp_as_default = true,
-      -- Set to 'mono' for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
+      -- 'mono' (default) for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
       -- Adjusts spacing to ensure icons are aligned
       nerd_font_variant = 'mono'
     },
+
+    -- (Default) Only show the documentation popup when manually triggered
+    completion = { documentation = { auto_show = false } },
 
     -- Default list of enabled providers defined so that you can extend it
     -- elsewhere in your config, without redefining it, due to `opts_extend`
@@ -62,7 +63,7 @@ Note: By default, Blink will attempt to use the rust implementation of the fuzzy
       default = { 'lsp', 'path', 'snippets', 'buffer' },
     },
 
-    -- Blink.cmp uses a Rust fuzzy matcher by default for typo resistance and significantly better performance
+    -- (Default) Rust fuzzy matcher for typo resistance and significantly better performance
     -- You may use a lua implementation instead by using `implementation = "lua"` or fallback to the lua implementation,
     -- when the Rust fuzzy matcher is not available, by using `implementation = "prefer_rust"`
     --
@@ -73,12 +74,11 @@ Note: By default, Blink will attempt to use the rust implementation of the fuzzy
 }
 ```
 
-::: warning
-On Neovim 0.11+ and Blink.cmp 0.10+ with `vim.lsp.config`, you may skip this step.
-This is still required when using `nvim-lspconfig` until [this issue is completed](https://github.com/neovim/nvim-lspconfig/issues/3494)
-:::
-
 ### LSP Capabilities
+
+::: warning
+On Neovim 0.11+ with `vim.lsp.config`, you may skip this step. See [nvim-lspconfig docs](https://github.com/neovim/nvim-lspconfig?tab=readme-ov-file#vimlspconfig)
+:::
 
 LSP servers and clients communicate which features they support through "capabilities". By default, Neovim supports a subset of the LSP specification. With blink.cmp, Neovim has _more_ capabilities which are communicated to the LSP servers.
 
@@ -87,7 +87,6 @@ Explanation from TJ: https://youtu.be/m8C0Cq9Uv9o?t=1275
 This can vary by config, but in general for nvim-lspconfig:
 
 ```lua
-
 {
   'neovim/nvim-lspconfig',
   dependencies = { 'saghen/blink.cmp' },
@@ -118,6 +117,38 @@ This can vary by config, but in general for nvim-lspconfig:
 }
 ```
 
+#### Merging LSP capabilities
+
+Blink.cmp's `get_lsp_capabilities` function includes the built-in LSP capabilities by default. To merge with your own capabilities, use the first argument, which acts as an override.
+
+```lua
+local capabilities = {
+  textDocument = {
+    foldingRange = {
+      dynamicRegistration = false,
+      lineFoldingOnly = true
+    }
+  }
+}
+
+capabilities = require('blink.cmp').get_lsp_capabilities(capabilities)
+
+-- or equivalently
+
+local capabilities = vim.lsp.protocol.make_client_capabilities()
+
+capabilities = vim.tbl_deep_extend('force', capabilities, require('blink.cmp').get_lsp_capabilities({}, false))
+
+capabilities = vim.tbl_deep_extend('force', capabilities, {
+  textDocument = {
+    foldingRange = {
+      dynamicRegistration = false,
+      lineFoldingOnly = true
+    }
+  }
+})
+```
+
 ## `mini.deps`
 
 The following section includes only the installation and, optionally, building of the fuzzy matcher. Check the [lazy.nvim](#lazy.nvim) section for recommended configuration options and setting up `nvim-lspconfig`.
@@ -126,9 +157,7 @@ The following section includes only the installation and, optionally, building o
 -- use a release tag to download pre-built binaries
 MiniDeps.add({
   source = "saghen/blink.cmp",
-  depends = {
-  "rafamadriz/friendly-snippets",
-  },
+  depends = { "rafamadriz/friendly-snippets" },
   checkout = "some.version", -- check releases for latest tag
 })
 
@@ -149,5 +178,82 @@ MiniDeps.add({
     post_install = build_blink,
     post_checkout = build_blink,
   },
+})
+```
+
+## vim-plug
+
+This section shows how to perform the equivalent default setup as demonstrated in the [lazy.nvim](#lazy.nvim) section using `vim-plug`.
+To install, add `blink.cmp` and its optional dependencies, then manually call `setup()` for further configuration:
+
+VimScript:
+
+```vim
+call plug#begin()
+" use a release tag to download pre-built binaries.
+" To build from source, use { 'do': 'cargo build --release' } instead
+" If you use nix, use { 'do': 'nix run .#build-plugin' }
+Plug 'saghen/blink.cmp', { 'tag': 'v1.*' }
+
+" optional: provides snippets for the snippet source
+Plug 'rafamadriz/friendly-snippets'
+call plug#end()
+
+lua << EOF
+require('blink.cmp').setup({
+  keymap = { preset = 'default' },
+  appearance = {
+    nerd_font_variant = 'mono'
+  },
+  completion = {
+    documentation = { auto_show = false }
+  },
+  sources = {
+    default = { 'lsp', 'path', 'snippets', 'buffer' },
+  },
+  fuzzy = {
+    implementation = "prefer_rust_with_warning"
+  }
+})
+EOF
+```
+
+Lua:
+
+```lua
+local Plug = vim.fn['plug#']
+
+-- Plugin installation
+vim.call('plug#begin')
+
+-- use a release tag to download pre-built binaries.
+-- To build from source, use { ['do'] = 'cargo build --release' } instead
+-- If you use nix, use { ['do'] = 'nix run .#build-plugin' }
+Plug('saghen/blink.cmp', { ['tag'] = 'v1.*' })
+
+-- optional: provides snippets for the snippet source
+Plug('rafamadriz/friendly-snippets')
+
+vim.call('plug#end')
+
+-- Plugin configuration
+require('blink.cmp').setup({
+  keymap = { preset = 'default' },
+
+  appearance = {
+    nerd_font_variant = 'mono'
+  },
+
+  completion = {
+    documentation = { auto_show = false }
+  },
+
+  sources = {
+    default = { 'lsp', 'path', 'snippets', 'buffer' },
+  },
+
+  fuzzy = {
+    implementation = "prefer_rust_with_warning"
+  }
 })
 ```

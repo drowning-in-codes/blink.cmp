@@ -2,13 +2,14 @@
 --- | 'fallback' Fallback to mappings or the built-in behavior
 --- | 'fallback_to_mappings' Fallback to mappings only (not built-in behavior)
 --- | 'show' Show the completion window
---- | 'show_and_insert' Show the completion window and select the first item
+--- | 'show_and_insert' Show the completion menu and insert the first item. Short form for `cmp.show({ initial_selected_item_idx = 1 })` when `auto_insert = true`
+--- | 'show_and_insert_or_accept_single' Show the completion menu and insert the first item, or accepts the first item if there is only one
 --- | 'hide' Hide the completion window
 --- | 'cancel' Cancel the current completion, undoing the preview from auto_insert
 --- | 'accept' Accept the current completion item
---- | 'accept_and_enter' Accept the current completion item and feed an enter key to neovim (i.e. to execute the current command in cmdline mode)
+--- | 'accept_and_enter' Accept the current completion item and feed an enter key to neovim (e.g. to execute the current command in cmdline mode)
 --- | 'select_and_accept' Select the first completion item, if there's no selection, and accept
---- | 'select_accept_and_enter' Select the first completion item, if there's no selection, accept and feed an enter key to neovim (i.e. to execute the current command in cmdline mode)
+--- | 'select_accept_and_enter' Select the first completion item, if there's no selection, accept and feed an enter key to neovim (e.g. to execute the current command in cmdline mode)
 --- | 'select_prev' Select the previous completion item
 --- | 'select_next' Select the next completion item
 --- | 'insert_prev' Insert the previous completion item (`auto_insert`), cycling to the bottom of the list if at the top, if `completion.list.cycle.from_top == true`. This will trigger completions if none are available, unlike `select_prev` which would fallback to the next keymap in this case.
@@ -19,9 +20,11 @@
 --- | 'scroll_documentation_down' Scroll the documentation window down
 --- | 'show_signature' Show the signature help window
 --- | 'hide_signature' Hide the signature help window
+--- | 'scroll_signature_up' Scroll the signature window up
+--- | 'scroll_signature_down' Scroll the signature window down
 --- | 'snippet_forward' Move the cursor forward to the next snippet placeholder
 --- | 'snippet_backward' Move the cursor backward to the previous snippet placeholder
---- | (fun(cmp: blink.cmp.API): boolean?) Custom function where returning true will prevent the next command from running
+--- | (fun(cmp: blink.cmp.API): boolean | string | nil) Custom function where returning true will prevent the next command from running. Returning a string will insert the literal characters
 
 --- @alias blink.cmp.KeymapPreset
 --- | 'none' No keymaps
@@ -31,7 +34,7 @@
 --- {
 ---   ['<C-space>'] = { 'show', 'show_documentation', 'hide_documentation' },
 ---   ['<C-e>'] = { 'cancel', 'fallback' },
----   ['<C-y>'] = { 'select_and_accept' },
+---   ['<C-y>'] = { 'select_and_accept', 'fallback' },
 ---
 ---   ['<Up>'] = { 'select_prev', 'fallback' },
 ---   ['<Down>'] = { 'select_next', 'fallback' },
@@ -52,20 +55,19 @@
 --- Mappings similar to the built-in completion in cmdline mode:
 --- ```lua
 --- {
----   ['<Tab>'] = {
----     function(cmp)
----       if cmp.is_ghost_text_visible() and not cmp.is_menu_visible() then return cmp.accept() end
----     end,
----     'show_and_insert',
----     'select_next',
----   },
----   ['<S-Tab>'] = { 'show_and_insert', 'select_prev' },
+---   ['<Tab>'] = { 'show_and_insert_or_accept_single', 'select_next' },
+---   ['<S-Tab>'] = { 'show_and_insert_or_accept_single', 'select_prev' },
+---
+---   ['<C-space>'] = { 'show', 'fallback' },
 ---
 ---   ['<C-n>'] = { 'select_next' },
 ---   ['<C-p>'] = { 'select_prev' },
+---   ['<Right>'] = { 'select_next', 'fallback' },
+---   ['<Left>'] = { 'select_prev', 'fallback' },
 ---
----   ['<C-y>'] = { 'select_and_accept' },
----   ['<C-e>'] = { 'cancel' },
+---   ['<C-y>'] = { 'select_and_accept', 'fallback' },
+---   ['<C-e>'] = { 'cancel', 'fallback' },
+---   ['<End>'] = { 'hide', 'fallback' },
 --- }
 --- ```
 --- | 'cmdline'
@@ -93,6 +95,8 @@
 ---
 ---   ['<C-b>'] = { 'scroll_documentation_up', 'fallback' },
 ---   ['<C-f>'] = { 'scroll_documentation_down', 'fallback' },
+---
+---   ['<C-k>'] = { 'show_signature', 'hide_signature', 'fallback' },
 --- }
 --- ```
 --- | 'super-tab'
@@ -114,6 +118,8 @@
 ---
 ---   ['<C-b>'] = { 'scroll_documentation_up', 'fallback' },
 ---   ['<C-f>'] = { 'scroll_documentation_down', 'fallback' },
+---
+---   ['<C-k>'] = { 'show_signature', 'hide_signature', 'fallback' },
 --- }
 --- ```
 --- | 'enter'
@@ -134,7 +140,7 @@
 ---   ['<Down>'] = { 'select_next', 'fallback' },
 ---
 ---   -- disable a keymap from the preset
----   ['<C-e>'] = {},
+---   ['<C-e>'] = false,
 ---
 ---   -- show with a list of providers
 ---   ['<C-space>'] = { function(cmp) cmp.show({ providers = { 'snippets' } }) end },
@@ -153,7 +159,7 @@
 --- When defining your own keymaps without a preset, no keybinds will be assigned automatically.
 --- @class (exact) blink.cmp.KeymapConfig
 --- @field preset? blink.cmp.KeymapPreset
---- @field [string] blink.cmp.KeymapCommand[] Table of keys => commands[]
+--- @field [string] blink.cmp.KeymapCommand[] | false Table of keys => commands[] or false to disable
 
 local keymap = {
   --- @type blink.cmp.KeymapConfig
@@ -173,6 +179,7 @@ function keymap.validate(config, is_mode)
     'fallback_to_mappings',
     'show',
     'show_and_insert',
+    'show_and_insert_or_accept_single',
     'hide',
     'cancel',
     'accept',
@@ -189,6 +196,8 @@ function keymap.validate(config, is_mode)
     'scroll_documentation_down',
     'show_signature',
     'hide_signature',
+    'scroll_signature_up',
+    'scroll_signature_down',
     'snippet_forward',
     'snippet_backward',
   }
@@ -210,12 +219,14 @@ function keymap.validate(config, is_mode)
       validation_schema[key] = {
         value,
         function(key_commands)
+          if key_commands == false then return true end
+          if type(key_commands) ~= 'table' then return false end
           for _, command in ipairs(key_commands) do
             if type(command) ~= 'function' and not vim.tbl_contains(commands, command) then return false end
           end
           return true
         end,
-        'commands must be one of: ' .. table.concat(commands, ', '),
+        'commands must be one of: ' .. table.concat(commands, ', ') .. ' or false to disable',
       }
     end
   end

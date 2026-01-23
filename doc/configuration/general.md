@@ -10,17 +10,17 @@ For more common configurations, see the [recipes](../recipes.md).
 
 ```lua
 {
-  -- Disable for some filetypes
-  enabled = function()
-    return not vim.tbl_contains({ "lua", "markdown" }, vim.bo.filetype)
-      and vim.bo.buftype ~= "prompt"
-      and vim.b.completion ~= false
-  end,
+  -- Enables keymaps, completions and signature help when true (doesn't apply to cmdline or term)
+  --
+  -- If the function returns 'force', the default conditions for disabling the plugin will be ignored
+  -- Default conditions: (vim.bo.buftype ~= 'prompt' and vim.b.completion ~= false)
+  -- Note that the default conditions are ignored when `vim.b.completion` is explicitly set to `true`
+  --
+  -- Exceptions: vim.bo.filetype == 'dap-repl'
+  enabled = function() return not vim.tbl_contains({ "lua", "markdown" }, vim.bo.filetype) end,
 
   -- Disable cmdline
-  cmdline = {
-    enabled = false
-  },
+  cmdline = { enabled = false },
 
   completion = {
     -- 'prefix' will fuzzy match on the text before the cursor
@@ -62,13 +62,8 @@ For more common configurations, see the [recipes](../recipes.md).
     default = { 'lsp', 'path', 'snippets', 'buffer' },
   },
 
-  -- Blink.cmp uses a Rust fuzzy matcher by default for frecency, proximity bonus, typo resistance and
-  -- significantly better performance. A lua implementation has been included as well.
-  -- See the fuzzy documentation for more information
-  fuzzy = { implementation = 'prefer_rust_with_warning' },
-
   -- Use a preset for snippets, check the snippets documentation for more information
-  snippets = { preset = 'default' | 'luasnip' | 'mini_snippets' },
+  snippets = { preset = 'default' | 'luasnip' | 'mini_snippets' | 'vsnip' },
 
   -- Experimental signature help support
   signature = { enabled = true }

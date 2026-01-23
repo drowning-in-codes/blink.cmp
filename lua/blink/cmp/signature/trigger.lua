@@ -23,7 +23,7 @@
 --- @field activate fun()
 --- @field is_trigger_character fun(char: string, is_retrigger?: boolean): boolean
 --- @field show_if_on_trigger_character fun()
---- @field show fun(opts?: { trigger_character: string })
+--- @field show fun(opts?: { trigger_character: string, force?: boolean })
 --- @field hide fun()
 --- @field set_active_signature_help fun(signature_help: lsp.SignatureHelp)
 
@@ -80,7 +80,20 @@ function trigger.activate()
       end
     end,
     on_insert_leave = function() trigger.hide() end,
+    on_complete_changed = function() require('blink.cmp.signature.window').update_position() end,
   })
+
+  if config.show_on_accept then
+    require('blink.cmp.completion.list').accept_emitter:on(function()
+      local cursor_col = vim.api.nvim_win_get_cursor(0)[2]
+      local char_under_cursor = vim.api.nvim_get_current_line():sub(cursor_col, cursor_col)
+
+      local is_on_trigger = trigger.is_trigger_character(char_under_cursor)
+      local opts = is_on_trigger and { trigger_character = char_under_cursor } or nil
+
+      trigger.show(opts)
+    end)
+  end
 end
 
 function trigger.is_trigger_character(char, is_retrigger)
@@ -107,9 +120,9 @@ function trigger.show_if_on_trigger_character()
 end
 
 function trigger.show(opts)
-  if not config.enabled then return end
-
   opts = opts or {}
+
+  if not opts.force and not config.enabled and trigger.context == nil then return end
 
   -- update context
   local cursor = vim.api.nvim_win_get_cursor(0)

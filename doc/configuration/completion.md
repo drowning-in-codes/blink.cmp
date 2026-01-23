@@ -57,7 +57,9 @@ Shows after entering insert mode on top of a trigger character.
 completion.trigger.show_on_insert_on_trigger_character = true
 -- Optionally, set a list of characters that will not trigger the completion window,
 -- even when sources request it. The following are the defaults:
-completion.trigger.show_on_x_blocked_trigger_characters = { "'", '"', '(', '{', '[' }
+completion.trigger.show_on_x_blocked_trigger_characters = {
+  "'", '"', '(', '{', '['
+}
 ```
 
 <video src="https://github.com/user-attachments/assets/9e7aa3c2-4756-4a5e-a0e8-303d3ae0fda9" muted autoplay loop />
@@ -72,7 +74,7 @@ completion.trigger.show_on_accept_on_trigger_character = true
 completion.trigger.show_on_x_blocked_trigger_characters = { "'", '"', '(', '{', '[' }
 ```
 
-TODO: Find a case where this actually fires : )
+Fires after accepting a path completion item, for example: `| -> foo/|`
 :::
 
 <!-- panvimdoc-include-comment
@@ -127,6 +129,10 @@ completion.trigger.show_on_x_blocked_trigger_characters = { "'", '"', '(', '{', 
 ## List <!-- panvimdoc-ignore-start --><Badge type="info"><a href="./reference#completion-list">Go to default configuration</a></Badge><!-- panvimdoc-ignore-end -->
 
 Manages the completion list and its behavior when selecting items. The most commonly changed option is `selection.preselect/auto_insert`, which controls whether the list will automatically select the first item in the list, and whether a "preview" will be inserted on selection.
+
+::: info
+The completion list in **cmdline mode** does **not** inherit the following settings from the default mode. To control its behavior, explicitly configure `cmdline.completion.list`. See [cmdline mode](../modes/cmdline.md) for more information.
+:::
 
 :::tabs
 == Preselect, Auto Insert (default)
@@ -249,6 +255,8 @@ Manages the appearance of the completion menu. You may prevent the menu from aut
 
 ### Menu Draw <!-- panvimdoc-ignore-start --><Badge type="info"><a href="./reference#completion-menu-draw">Go to default configuration</a></Badge><!-- panvimdoc-ignore-end -->
 
+[Check out the recipes!](../recipes.md#completion-menu-drawing)
+
 blink.cmp uses a grid-based layout to render the completion menu. The components, defined in `draw.components[string]`, define `text` and `highlight` functions which are called for each completion item. The `highlight` function will be called only when the item appears on screen, so expensive operations such as Treesitter highlighting may be performed. The components may define their min and max width, where `ellipsis = true` (enabled by default), will draw the `…` character when the text is truncated. Setting `width.fill = true` will fill the remaining space, effectively making subsequent components right aligned, with respect to their column.
 
 Columns effectively allow you to vertically align a set of components. Each column, defined as an array in `draw.columns`, will be rendered for all of the completion items, where the longest rendered row will determine the width of the column. You may define `gap = number` in your column to insert a gap between components.
@@ -269,6 +277,22 @@ completion.menu.draw.columns = { { "label", "label_description", gap = 1 }, { "k
   - If the `label_description` is missing from your items, ensure you've [setup LSP capabilities](../installation) and that your LSP supports the feature
 - `source_name`: Shows the name of the source that provided the item, from the `sources.providers.*.name` (e.g. `LSP`)
 - `source_id`: Shows the id of the source that provided the item, from the `sources.providers[id]` (e.g. `lsp`)
+
+#### Cursorline
+
+The cursorline background will be rendered with a priority of `10000` to ensure that highlights with backgrounds (such as those from the default theme) will be overridden by the cursorline. If you'd like to use a background in your highlight, set the priority to `10001` or higher.
+
+```lua
+completion.menu.draw.components.label.kind_icon.highlight = function(ctx)
+  return { { group = ctx.kind_hl, priority = 20000 } }
+end
+```
+
+Or you may set the cursorline highlight priority to `0`
+
+```lua
+completion.menu.draw.cursorline_priority = 0
+```
 
 ### Treesitter
 

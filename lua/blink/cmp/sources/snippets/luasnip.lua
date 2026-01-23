@@ -2,6 +2,7 @@
 --- @field use_show_condition? boolean Whether to use show_condition for filtering snippets
 --- @field show_autosnippets? boolean Whether to show autosnippets in the completion list
 --- @field prefer_doc_trig? boolean When expanding `regTrig` snippets, prefer `docTrig` over `trig` placeholder
+--- @field use_label_description? boolean Whether to put the snippet description in the label description
 
 --- @class blink.cmp.LuasnipSource : blink.cmp.Source
 --- @field config blink.cmp.LuasnipSourceOptions
@@ -13,18 +14,31 @@ local utils = require('blink.cmp.lib.utils')
 --- @diagnostic disable-next-line: missing-fields
 local source = {}
 
-local defaults_config = {
+local default_config = {
   use_show_condition = true,
   show_autosnippets = true,
   prefer_doc_trig = false,
+  use_label_description = false,
 }
 
+---@param snippet table
+---@param event string
+---@param callback fun(table, table)
+local function add_luasnip_callback(snippet, event, callback)
+  local events = require('luasnip.util.events')
+  -- not defined for autosnippets
+  if snippet.callbacks == nil then return end
+  snippet.callbacks[-1] = snippet.callbacks[-1] or {}
+  snippet.callbacks[-1][events[event]] = callback
+end
+
 function source.new(opts)
-  local config = vim.tbl_deep_extend('keep', opts, defaults_config)
-  require('blink.cmp.config.utils').validate('sources.providers.luasnip', {
+  local config = vim.tbl_deep_extend('keep', opts, default_config)
+  require('blink.cmp.config.utils').validate('sources.providers.snippets.opts', {
     use_show_condition = { config.use_show_condition, 'boolean' },
     show_autosnippets = { config.show_autosnippets, 'boolean' },
     prefer_doc_trig = { config.prefer_doc_trig, 'boolean' },
+    use_label_description = { config.use_label_description, 'boolean' },
   }, config)
 
   local self = setmetatable({}, { __index = source })
@@ -72,6 +86,9 @@ function source:get_completions(ctx, callback)
     local snippets = require('luasnip').get_snippets(ft, { type = 'snippets' })
     if self.config.show_autosnippets then
       local autosnippets = require('luasnip').get_snippets(ft, { type = 'autosnippets' })
+      for _, s in ipairs(autosnippets) do
+        add_luasnip_callback(s, 'enter', require('blink.cmp').hide)
+      end
       snippets = require('blink.cmp.lib.utils').shallow_copy(snippets)
       vim.list_extend(snippets, autosnippets)
     end
@@ -97,6 +114,9 @@ function source:get_completions(ctx, callback)
         insertTextFormat = vim.lsp.protocol.InsertTextFormat.PlainText,
         sortText = sort_text,
         data = { snip_id = snip.id, show_condition = snip.show_condition },
+        labelDetails = snip.dscr and self.config.use_label_description and {
+          description = table.concat(snip.dscr, ' '),
+        } or nil,
       }
       -- populate snippet cache for this filetype
       table.insert(self.items_cache[ft], item)
@@ -140,7 +160,7 @@ function source:resolve(item, callback)
   callback(resolved_item)
 end
 
-function source:execute(_, item)
+function source:execute(ctx, item)
   local luasnip = require('luasnip')
   local snip = luasnip.get_id_snippet(item.data.snip_id)
 
@@ -149,11 +169,8 @@ function source:execute(_, item)
     local docTrig = self.config.prefer_doc_trig and snip.docTrig
     snip = snip:get_pattern_expand_helper()
 
-    -- See: https://github.com/Saghen/blink.cmp/issues/1373#issuecomment-2695850827
     if docTrig then
-      local events = require('luasnip.util.events')
-      snip.callbacks[-1] = snip.callbacks[-1] or {}
-      snip.callbacks[-1][events.pre_expand] = function(snip, _)
+      add_luasnip_callback(snip, 'pre_expand', function(snip, _)
         if #snip.insert_nodes == 0 then
           snip.insert_nodes[0].static_text = { docTrig }
         else
@@ -163,28 +180,37 @@ function source:execute(_, item)
             snip.insert_nodes[idx].static_text = { match }
           end
         end
-      end
+      end)
     end
   end
 
   -- get (0, 0) indexed cursor position
-  -- the completion has been accepted by this point, so ctx.cursor is out of date
-  local cursor = vim.api.nvim_win_get_cursor(0)
+  local cursor = ctx.get_cursor()
   cursor[1] = cursor[1] - 1
 
-  local expand_params = snip:matches(require('luasnip.util.util').get_current_line_to_cursor())
-
+  local range = require('blink.cmp.lib.text_edits').get_from_item(item).range
   local clear_region = {
-    from = { cursor[1], cursor[2] - #item.insertText },
+    from = { range.start.line, range.start.character },
     to = cursor,
   }
-  if expand_params ~= nil and expand_params.clear_region ~= nil then
-    clear_region = expand_params.clear_region
-  elseif expand_params ~= nil and expand_params.trigger ~= nil then
-    clear_region = {
-      from = { cursor[1], cursor[2] - #expand_params.trigger },
-      to = cursor,
-    }
+
+  local line = ctx.get_line()
+  local line_to_cursor = line:sub(1, cursor[2])
+  local range_text = line:sub(range.start.character + 1, cursor[2])
+
+  local expand_params = snip:matches(line_to_cursor, {
+    fallback_match = range_text ~= line_to_cursor and range_text,
+  })
+
+  if expand_params ~= nil then
+    if expand_params.clear_region ~= nil then
+      clear_region = expand_params.clear_region
+    elseif expand_params.trigger ~= nil then
+      clear_region = {
+        from = { cursor[1], cursor[2] - #expand_params.trigger },
+        to = cursor,
+      }
+    end
   end
 
   luasnip.snip_expand(snip, { expand_params = expand_params, clear_region = clear_region })

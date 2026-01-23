@@ -1,11 +1,13 @@
---- @type table<string, table<string, blink.cmp.KeymapCommand[]>>
-local presets = {
+local presets = {}
+
+--- @type table<string, table<string, blink.cmp.KeymapCommand[] | false>>
+local presets_keymaps = {
   none = {},
 
   default = {
     ['<C-space>'] = { 'show', 'show_documentation', 'hide_documentation' },
     ['<C-e>'] = { 'cancel', 'fallback' },
-    ['<C-y>'] = { 'select_and_accept' },
+    ['<C-y>'] = { 'select_and_accept', 'fallback' },
 
     ['<Up>'] = { 'select_prev', 'fallback' },
     ['<Down>'] = { 'select_next', 'fallback' },
@@ -22,14 +24,11 @@ local presets = {
   },
 
   cmdline = {
-    ['<Tab>'] = {
-      function(cmp)
-        if cmp.is_ghost_text_visible() and not cmp.is_menu_visible() then return cmp.accept() end
-      end,
-      'show_and_insert',
-      'select_next',
+    ['<Tab>'] = { 'show_and_insert_or_accept_single', 'select_next' },
+    ['<S-Tab>'] = {
+      function(cmp) return cmp.show_and_insert_or_accept_single({ initial_selected_item_idx = -1 }) end,
+      'select_prev',
     },
-    ['<S-Tab>'] = { 'show_and_insert', 'select_prev' },
 
     ['<C-space>'] = { 'show', 'fallback' },
 
@@ -38,8 +37,9 @@ local presets = {
     ['<Right>'] = { 'select_next', 'fallback' },
     ['<Left>'] = { 'select_prev', 'fallback' },
 
-    ['<C-y>'] = { 'select_and_accept' },
-    ['<C-e>'] = { 'cancel' },
+    ['<C-y>'] = { 'select_and_accept', 'fallback' },
+    ['<C-e>'] = { 'cancel', 'fallback' },
+    ['<End>'] = { 'hide', 'fallback' },
   },
 
   ['super-tab'] = {
@@ -92,9 +92,9 @@ local presets = {
 
 --- Gets the preset keymap for the given preset name
 --- @param name string
---- @return table<string, blink.cmp.KeymapCommand[]>
+--- @return table<string, blink.cmp.KeymapCommand[] | false>
 function presets.get(name)
-  local preset = presets[name]
+  local preset = presets_keymaps[name]
   if preset == nil then error('Invalid blink.cmp keymap preset: ' .. name) end
   return preset
 end

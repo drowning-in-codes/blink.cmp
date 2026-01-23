@@ -1,6 +1,17 @@
 # Command line (cmdline)
 
-By default, blink.cmp enabled cmdline completions (`cmdline.enabled = true`), matching the behavior of the built-in `cmdline` completion:
+::: info
+If you want cmdline's behavior to match the default mode, try the following config:
+
+```lua
+cmdline = {
+  keymap = { preset = 'inherit' },
+  completion = { menu = { auto_show = true } },
+},
+```
+:::
+
+By default, cmdline completions are enabled (`cmdline.enabled = true`), matching the behavior of the built-in `cmdline` completion:
 
 - Menu will not show automatically (`cmdline.completion.menu.auto_show = false`)
 - Pressing `<Tab>` will show the completion menu and insert the first item
@@ -22,14 +33,8 @@ Set via `cmdline.keymap.preset = 'cmdline'`, which is the default. Set to `'none
   -- instead of using the neovim defaults
   -- preset = 'inherit',
 
-  ['<Tab>'] = {
-    function(cmp)
-      if cmp.is_ghost_text_visible() and not cmp.is_menu_visible() then return cmp.accept() end
-    end,
-    'show_and_insert',
-    'select_next',
-  },
-  ['<S-Tab>'] = { 'show_and_insert', 'select_prev' },
+  ['<Tab>'] = { 'show_and_insert_or_accept_single', 'select_next' },
+  ['<S-Tab>'] = { 'show_and_insert_or_accept_single', 'select_prev' },
 
   ['<C-space>'] = { 'show', 'fallback' },
 
@@ -38,14 +43,14 @@ Set via `cmdline.keymap.preset = 'cmdline'`, which is the default. Set to `'none
   ['<Right>'] = { 'select_next', 'fallback' },
   ['<Left>'] = { 'select_prev', 'fallback' },
 
-  ['<C-y>'] = { 'select_and_accept' },
-  ['<C-e>'] = { 'cancel' },
+  ['<C-y>'] = { 'select_and_accept', 'fallback' },
+  ['<C-e>'] = { 'cancel', 'fallback' },
 }
 ```
 
 ## Ghost text
 
-When [noice.nvim](https://github.com/folke/noice.nvim) is detected, ghost text will be shown, likely similar to your terminal shell completions. Pressing `<Tab>` while ghost text is visible will accept the completion. When not visible, `<Tab>` will open the menu and insert the first item as per usual.
+When [noice.nvim](https://github.com/folke/noice.nvim) is detected, ghost text will be shown, likely similar to your terminal shell completions. Pressing `<Tab>` will open the menu and insert the first item as per usual.
 
 <img src="https://github.com/user-attachments/assets/b2fa6f41-4937-47bf-86b3-d82e9ec86b12">
 

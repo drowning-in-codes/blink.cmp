@@ -57,6 +57,9 @@ local function on_char_added(char, is_ignored)
 
   -- character is part of a keyword
   elseif fuzzy.is_keyword_character(char) and (config.show_on_keyword or trigger.context ~= nil) then
+    -- typed after auto insertion, refresh the menu
+    if require('blink.cmp.completion.list').preview_undo ~= nil then trigger.context = nil end
+
     trigger.show({ trigger_kind = 'keyword' })
 
   -- nothing matches so hide
@@ -65,7 +68,7 @@ local function on_char_added(char, is_ignored)
   end
 end
 
-local function on_cursor_moved(event, is_ignored)
+local function on_cursor_moved(event, is_ignored, is_backspace, last_event)
   local is_enter_event = event == 'InsertEnter' or event == 'TermEnter'
 
   local cursor = context.get_cursor()
@@ -78,18 +81,15 @@ local function on_cursor_moved(event, is_ignored)
   -- but don't send an on_show event upstream
   if is_ignored and event == 'CursorMoved' then
     if trigger.context ~= nil then
-      -- TODO: If we `auto_insert` with the `path` source, we may end up on a trigger character
-      -- i.e. `downloads/`. If we naively update the context, we'll show the menu with the
-      -- existing context. So we clear the context if we're not on a keyword character.
-      -- Is there a better solution here?
-      if not is_keyword then trigger.context = nil end
+      -- If we `auto_insert` with the `path` source, we may end up on a trigger character, e.g. `downloads/`
+      -- If we naively update the context, we'll show the menu with the existing context
+      -- TODO: is this still needed since we handle this in char added?
+      if require('blink.cmp.completion.list').preview_undo ~= nil then trigger.context = nil end
 
       trigger.show({ send_upstream = false, trigger_kind = 'keyword' })
     end
     return
   end
-
-  local is_on_trigger_for_show = trigger.is_trigger_character(char_under_cursor)
 
   -- TODO: doesn't handle `a` where the cursor moves immediately after
   -- Reproducible with `example.|a` and pressing `a`, should not show the menu
@@ -99,15 +99,15 @@ local function on_cursor_moved(event, is_ignored)
     and trigger.is_trigger_character(char_under_cursor, true)
 
   -- check if we're still within the bounds of the query used for the context
-  if trigger.context ~= nil and trigger.context:within_query_bounds(cursor) then
+  if
+    trigger.context ~= nil
+    and trigger.context.trigger.kind ~= 'prefetch'
+    and trigger.context:within_query_bounds(cursor, trigger.is_trigger_character(char_under_cursor))
+  then
     trigger.show({ trigger_kind = 'keyword' })
 
   -- check if we've entered insert mode on a trigger character
-  -- or if we've moved onto a trigger character while open
-  elseif
-    insert_enter_on_trigger_character
-    or (is_on_trigger_for_show and trigger.context ~= nil and trigger.context.trigger.kind ~= 'prefetch')
-  then
+  elseif insert_enter_on_trigger_character then
     trigger.context = nil
     trigger.show({ trigger_kind = 'trigger_character', trigger_character = char_under_cursor })
 
@@ -116,9 +116,29 @@ local function on_cursor_moved(event, is_ignored)
     trigger.context = nil
     trigger.show({ trigger_kind = 'keyword' })
 
-  -- prefetch completions without opening window on InsertEnter
+  -- show after entering insert mode
+  elseif is_enter_event and config.show_on_insert then
+    trigger.show({ trigger_kind = 'keyword' })
+
+  -- prefetch completions without opening window after entering insert mode
   elseif is_enter_event and config.prefetch_on_insert then
     trigger.show({ trigger_kind = 'prefetch' })
+
+  -- show after backspacing
+  elseif config.show_on_backspace and is_backspace then
+    trigger.show({ trigger_kind = 'keyword' })
+
+  -- show after backspacing into a keyword
+  elseif config.show_on_backspace_in_keyword and is_backspace and is_keyword then
+    trigger.show({ trigger_kind = 'keyword' })
+
+  -- show after entering insert or term mode and backspacing into a keyword
+  elseif config.show_on_backspace_after_insert_enter and is_backspace and last_event == 'enter' and is_keyword then
+    trigger.show({ trigger_kind = 'keyword' })
+
+  -- show after accepting a completion and then backspacing into a keyword
+  elseif config.show_on_backspace_after_accept and is_backspace and last_event == 'accept' and is_keyword then
+    trigger.show({ trigger_kind = 'keyword' })
 
   -- otherwise hide
   else
@@ -137,6 +157,9 @@ function trigger.activate()
     on_char_added = on_char_added,
     on_cursor_moved = on_cursor_moved,
     on_insert_leave = function() trigger.hide() end,
+    on_complete_changed = function()
+      if vim.fn.pumvisible() == 1 then trigger.hide() end
+    end,
   })
 
   trigger.cmdline_events = require('blink.cmp.lib.cmdline_events').new()
@@ -217,7 +240,7 @@ function trigger.show_if_on_trigger_character(opts)
 end
 
 function trigger.show(opts)
-  if not require('blink.cmp.config').enabled() then return trigger.hide() end
+  if vim.fn.pumvisible() == 1 or not root_config.enabled() then return trigger.hide() end
 
   opts = opts or {}
 
@@ -251,7 +274,7 @@ function trigger.show(opts)
 
   local initial_trigger_character = trigger.context and trigger.context.trigger.initial_character
     or opts.trigger_character
-  -- reset the initial character if the context iid has changed
+  -- reset the initial character if the context id has changed
   if trigger.context ~= nil and trigger.context.id ~= trigger.current_context_id then
     initial_trigger_character = nil
   end
@@ -272,6 +295,7 @@ end
 
 function trigger.hide()
   if not trigger.context then return end
+
   trigger.context = nil
   trigger.hide_emitter:emit()
 end

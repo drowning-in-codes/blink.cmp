@@ -1,4 +1,10 @@
 -- Run with `nvim -u repro.lua`
+--
+-- Please update the code below to reproduce your issue and send the updated code, with reproduction
+--  steps, in your issue report
+--
+-- If you get warnings about prebuilt binaries, you may use `fuzzy.implementation = 'lua'`
+--  but note this has caveats: https://cmp.saghen.dev/configuration/fuzzy#rust-vs-lua-implementation
 
 vim.env.LAZY_STDPATH = '.repro'
 load(vim.fn.system('curl -s https://raw.githubusercontent.com/folke/lazy.nvim/main/bootstrap.lua'))()
@@ -14,21 +20,16 @@ require('lazy.minit').repro({
       opts = {},
     },
     {
-      'neovim/nvim-lspconfig',
+      'mason-org/mason.nvim',
+      build = ':MasonUpdate',
+      opts = {},
+    },
+    {
+      'mason-org/mason-lspconfig.nvim',
+      dependencies = { 'mason-org/mason.nvim', 'neovim/nvim-lspconfig' },
       opts = {
-        servers = {
-          lua_ls = {},
-        },
+        ensure_installed = { 'lua_ls' },
       },
-      config = function(_, opts)
-        local lspconfig = require('lspconfig')
-        for server, config in pairs(opts.servers) do
-          -- passing config.capabilities to blink.cmp merges with the capabilities in your
-          -- `opts[server].capabilities, if you've defined it
-          config.capabilities = require('blink.cmp').get_lsp_capabilities()
-          lspconfig[server].setup(config)
-        end
-      end,
     },
   },
 })

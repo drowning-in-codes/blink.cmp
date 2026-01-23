@@ -1,7 +1,7 @@
 --- @class blink.cmp.CompletionDocumentationWindow
 --- @field win blink.cmp.Window
 --- @field last_context_id? number
---- @field auto_show_timer uv_timer_t
+--- @field auto_show_timer uv.uv_timer_t?
 --- @field shown_item? blink.cmp.CompletionItem
 ---
 --- @field auto_show_item fun(context: blink.cmp.Context, item: blink.cmp.CompletionItem)
@@ -20,15 +20,17 @@ local menu = require('blink.cmp.completion.windows.menu')
 --- @type blink.cmp.CompletionDocumentationWindow
 --- @diagnostic disable-next-line: missing-fields
 local docs = {
-  win = require('blink.cmp.lib.window').new({
+  win = require('blink.cmp.lib.window').new('documentation', {
     min_width = win_config.min_width,
     max_width = win_config.max_width,
     max_height = win_config.max_height,
+    default_border = 'padded',
     border = win_config.border,
     winblend = win_config.winblend,
     winhighlight = win_config.winhighlight,
     scrollbar = win_config.scrollbar,
     wrap = true,
+    linebreak = true,
     filetype = 'blink-cmp-documentation',
     scrolloff = 0,
   }),
@@ -68,9 +70,10 @@ function docs.show_item(context, item)
       end
 
       if docs.shown_item ~= item then
+        local docs_buf = docs.win:get_buf()
         --- @type blink.cmp.RenderDetailAndDocumentationOpts
         local default_render_opts = {
-          bufnr = docs.win:get_buf(),
+          bufnr = docs_buf,
           detail = item.detail,
           documentation = item.documentation,
           max_width = docs.win.config.max_width,
@@ -84,13 +87,15 @@ function docs.show_item(context, item)
 
         -- allow the provider to override the drawing optionally
         -- TODO: should the default_implementation be the configured draw function instead of the built-in?
-        local draw = item.documentation and (item.documentation.draw or item.documentation.render) or config.draw
+        local draw = item.documentation and item.documentation.draw or config.draw
+        vim.api.nvim_set_option_value('modifiable', true, { buf = docs_buf })
         draw({
           item = item,
           window = docs.win,
           config = config,
           default_implementation = default_impl,
         })
+        vim.api.nvim_set_option_value('modifiable', false, { buf = docs_buf })
       end
       docs.shown_item = item
 

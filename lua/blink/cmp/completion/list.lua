@@ -18,19 +18,36 @@
 --- @field get_selected_item fun(): blink.cmp.CompletionItem?
 --- @field get_selection_mode fun(context: blink.cmp.Context): { preselect: boolean, auto_insert: boolean }
 --- @field get_item_idx_in_list fun(item?: blink.cmp.CompletionItem): number?
---- @field select fun(idx?: number, opts?: { auto_insert?: boolean, undo_preview?: boolean, is_explicit_selection?: boolean })
---- @field select_next fun(opts?: blink.cmp.CompletionListSelectOpts)
---- @field select_prev fun(opts?: blink.cmp.CompletionListSelectOpts)
+--- @field select fun(idx?: number, opts?: { auto_insert?: boolean, undo_preview?: boolean, is_explicit_selection?: boolean }): boolean
+--- @field select_next fun(opts?: blink.cmp.CompletionListSelectOpts): boolean
+--- @field select_prev fun(opts?: blink.cmp.CompletionListSelectOpts): boolean
+--- @field can_select fun(opts?: blink.cmp.CompletionListSelectOpts): boolean
+--- @field jump_by fun(dir: number, opts?: blink.cmp.CompletionListSelectOpts): boolean
 ---
 --- @field undo_preview fun()
 --- @field apply_preview fun(item: blink.cmp.CompletionItem)
 --- @field accept fun(opts?: blink.cmp.CompletionListAcceptOpts): boolean Applies the currently selected item, returning true if it succeeded
 
 --- @class blink.cmp.CompletionListSelectOpts
---- @field auto_insert? boolean When `true`, inserts the completion item automatically when selecting it
+--- @field count? number The number of items to jump by, defaults to 1
+--- @field jump_by? blink.cmp.CompletionListJumpBy Jump to the item whose specified property differs from the current one.
+--- @field auto_insert? boolean Insert the completion item automatically when selecting it
+--- @field on_ghost_text? boolean Run when ghost text is visible, instead of only when the menu is visible
+
+--- @alias blink.cmp.CompletionListJumpBy
+--- | 'client_id'
+--- | 'client_name'
+--- | 'deprecated'
+--- | 'exact'
+--- | 'kind'
+--- | 'score'
+--- | 'score_offset'
+--- | 'source_id'
+--- | 'source_name'
 
 --- @class blink.cmp.CompletionListSelectAndAcceptOpts
 --- @field callback? fun() Called after the item is accepted
+--- @field force? boolean Force accept without visual feedback (no menu, no ghost text visible)
 
 --- @class blink.cmp.CompletionListAcceptOpts : blink.cmp.CompletionListSelectAndAcceptOpts
 --- @field index? number The index of the item to accept, if not provided, the currently selected item will be accepted
@@ -128,7 +145,10 @@ function list.fuzzy(context, items_by_source)
   return require('blink.cmp.lib.utils').slice(filtered_items, 1, list.config.max_items)
 end
 
-function list.hide() list.hide_emitter:emit({ context = list.context }) end
+function list.hide()
+  list.selected_item_idx = nil
+  list.hide_emitter:emit({ context = list.context })
+end
 
 ---------- Selection ----------
 
@@ -157,7 +177,9 @@ function list.get_item_idx_in_list(item)
 end
 
 function list.select(idx, opts)
+  if idx ~= nil and idx < 0 then idx = math.max(#list.items + idx + 1, 1) end
   opts = opts or {}
+
   local item = list.items[idx]
 
   local auto_insert = opts.auto_insert
@@ -172,10 +194,11 @@ function list.select(idx, opts)
   list.is_explicitly_selected = opts.is_explicit_selection == nil and true or opts.is_explicit_selection
   list.selected_item_idx = idx
   list.select_emitter:emit({ idx = idx, item = item, items = list.items, context = list.context })
+  return true
 end
 
 function list.select_next(opts)
-  if #list.items == 0 or list.context == nil then return end
+  if #list.items == 0 or list.context == nil then return false end
 
   -- haven't selected anything yet, select the first item, if cycling enabled
   if list.selected_item_idx == nil then return list.select(1, opts) end
@@ -183,25 +206,29 @@ function list.select_next(opts)
   -- end of the list
   if list.selected_item_idx == #list.items then
     -- preselect is not enabled, we go back to no selection
-    if not list.get_selection_mode(list.context).preselect then return list.select(nil, opts) end
+    local select_mode = list.get_selection_mode(list.context)
+    if not select_mode.preselect or select_mode.auto_insert then return list.select(nil, opts) end
 
     -- cycling around has been disabled, ignore
-    if not list.config.cycle.from_bottom then return end
+    if not list.config.cycle.from_bottom then return false end
 
     -- otherwise, we cycle around
     return list.select(1, opts)
   end
 
-  -- typical case, select the next item
-  list.select(list.selected_item_idx + 1, opts)
+  if opts and opts.jump_by and list.jump_by(1, opts) then return true end
+
+  -- fallback, select the next item
+  local count = opts and opts.count or 1
+  return list.select(math.min(list.selected_item_idx + count, #list.items), opts)
 end
 
 function list.select_prev(opts)
-  if #list.items == 0 or list.context == nil then return end
+  if #list.items == 0 or list.context == nil then return false end
 
   -- haven't selected anything yet, select the last item, if cycling enabled
   if list.selected_item_idx == nil then
-    if not list.config.cycle.from_top then return end
+    if not list.config.cycle.from_top then return false end
 
     return list.select(#list.items, opts)
   end
@@ -209,17 +236,76 @@ function list.select_prev(opts)
   -- start of the list
   if list.selected_item_idx == 1 then
     -- auto_insert is enabled, we go back to no selection
-    if list.get_selection_mode(list.context).auto_insert then return list.select(nil, opts) end
+    local select_mode = list.get_selection_mode(list.context)
+    if not select_mode.preselect or select_mode.auto_insert then return list.select(nil, opts) end
 
     -- cycling around has been disabled, ignore
-    if not list.config.cycle.from_top then return end
+    if not list.config.cycle.from_top then return false end
 
     -- otherwise, we cycle around
     return list.select(#list.items, opts)
   end
 
-  -- typical case, select the previous item
-  list.select(list.selected_item_idx - 1, opts)
+  if opts and opts.jump_by and list.jump_by(-1, opts) then return true end
+
+  -- fallback, select the previous item
+  local count = opts and opts.count or 1
+  return list.select(math.max(list.selected_item_idx - count, 1), opts)
+end
+
+--- Check if we're able to perform a selection.
+--- We need this because `select_next` and `select_prev` are scheduled, but we need to know whether
+--- to fallback beforehand.
+--- @param opts blink.cmp.CompletionListSelectOpts
+--- @return boolean
+function list.can_select(opts)
+  local cmp = require('blink.cmp')
+  local on_ghost_text = opts and opts.on_ghost_text
+  if not cmp.is_menu_visible() and (not on_ghost_text or not cmp.is_ghost_text_visible()) then return false end
+
+  if not opts or not opts.jump_by then return true end
+
+  if list.selected_item_idx then
+    local current = list.items[list.selected_item_idx][opts.jump_by]
+    if not vim.tbl_contains({ 'string', 'number', 'boolean' }, type(current)) then return false end
+  end
+
+  return true
+end
+
+--- Jump to the item whose specified property differs from the current one. Supports cycling.
+--- @param dir integer direction - 1 for next, -1 for previous
+--- @param opts blink.cmp.CompletionListSelectOpts
+--- @return boolean
+function list.jump_by(dir, opts)
+  opts = opts or {}
+  assert(vim.tbl_contains({ 'string', 'function' }, type(opts.jump_by)), 'jump_by must be a string or function')
+
+  if not list.items or #list.items == 0 or not list.selected_item_idx then return false end
+
+  local current = list.items[list.selected_item_idx][opts.jump_by]
+  if not vim.tbl_contains({ 'string', 'number', 'boolean' }, type(current)) then return false end
+
+  local function try_jump(start_idx, end_idx, step)
+    for i = start_idx, end_idx, step do
+      if list.items[i][opts.jump_by] ~= current then return list.select(i, opts) end
+    end
+    return false
+  end
+
+  if dir == 1 then
+    if try_jump(list.selected_item_idx + 1, #list.items, 1) then return true end
+    if list.config and list.config.cycle and list.config.cycle.from_bottom then
+      return try_jump(1, list.selected_item_idx - 1, 1)
+    end
+  elseif dir == -1 then
+    if try_jump(list.selected_item_idx - 1, 1, -1) then return true end
+    if list.config and list.config.cycle and list.config.cycle.from_top then
+      return try_jump(#list.items, list.selected_item_idx + 1, -1)
+    end
+  end
+
+  return false
 end
 
 ---------- Preview ----------
@@ -232,6 +318,7 @@ function list.undo_preview()
 
   -- The text edit may be out of date due to the user typing more characters
   -- so we adjust the range to compensate
+  -- TODO: Set offset_encoding
   local old_cursor_col = list.preview_undo.cursor_after[2]
   local new_cursor_col = context.get_cursor()[2]
   text_edit = text_edits_lib.compensate_for_cursor_movement(text_edit, old_cursor_col, new_cursor_col)

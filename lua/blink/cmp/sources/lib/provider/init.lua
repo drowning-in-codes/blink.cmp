@@ -15,7 +15,7 @@
 --- @field should_show_items fun(self: blink.cmp.SourceProvider, context: blink.cmp.Context, items: blink.cmp.CompletionItem[]): boolean
 --- @field transform_items fun(self: blink.cmp.SourceProvider, context: blink.cmp.Context, items: blink.cmp.CompletionItem[]): blink.cmp.CompletionItem[]
 --- @field resolve fun(self: blink.cmp.SourceProvider, context: blink.cmp.Context, item: blink.cmp.CompletionItem): blink.cmp.Task
---- @field execute fun(self: blink.cmp.SourceProvider, context: blink.cmp.Context, item: blink.cmp.CompletionItem, callback: fun()): blink.cmp.Task
+--- @field execute fun(self: blink.cmp.SourceProvider, context: blink.cmp.Context, item: blink.cmp.CompletionItem, default_implementation: fun(context?: blink.cmp.Context, item?: blink.cmp.CompletionItem)): blink.cmp.Task
 --- @field get_signature_help_trigger_characters fun(self: blink.cmp.SourceProvider): { trigger_characters: string[], retrigger_characters: string[] }
 --- @field get_signature_help fun(self: blink.cmp.SourceProvider, context: blink.cmp.SignatureHelpContext): blink.cmp.Task
 --- @field reload (fun(self: blink.cmp.SourceProvider): nil) | nil
@@ -27,8 +27,10 @@ local source = {}
 local async = require('blink.cmp.lib.async')
 
 function source.new(id, config)
-  assert(type(config.name) == 'string', 'Each source in config.sources.providers must have a "name" of type string')
   assert(type(config.module) == 'string', 'Each source in config.sources.providers must have a "module" of type string')
+
+  -- Default "name" to capitalized id
+  if config.name == nil then config.name = id:sub(1, 1):upper() .. id:sub(2) end
 
   local self = setmetatable({}, { __index = source })
   self.id = id
@@ -46,7 +48,11 @@ end
 
 function source:enabled()
   -- user defined
-  if not self.config.enabled() then return false end
+  local user_enabled = self.config.enabled
+  if user_enabled ~= nil then
+    if type(user_enabled) == 'function' then return user_enabled() end
+    return user_enabled
+  end
 
   -- source defined
   if self.module.enabled == nil then return true end
@@ -100,7 +106,7 @@ function source:should_show_items(context, items)
 
   -- for manual trigger, we ignore the min_keyword_length set globally, but still respect per-provider
   local global_min_keyword_length = 0
-  if context.trigger.initial_kind ~= 'manual' then
+  if context.trigger.initial_kind ~= 'manual' and context.trigger.initial_kind ~= 'trigger_character' then
     local global_min_keyword_length_func_or_num = require('blink.cmp.config').sources.min_keyword_length
     if type(global_min_keyword_length_func_or_num) == 'function' then
       global_min_keyword_length = global_min_keyword_length_func_or_num(context)
@@ -109,7 +115,9 @@ function source:should_show_items(context, items)
     end
   end
 
-  local min_keyword_length = math.max(provider_min_keyword_length, global_min_keyword_length)
+  local min_keyword_length = global_min_keyword_length
+  if provider_min_keyword_length > 0 then min_keyword_length = provider_min_keyword_length end
+
   local current_keyword_length = context.bounds.length
   if current_keyword_length < min_keyword_length then return false end
 
@@ -117,8 +125,9 @@ function source:should_show_items(context, items)
   if self.module.should_show_items ~= nil and not self.module:should_show_items(context, items) then return false end
 
   -- check if the user wants to show items
-  if self.config.should_show_items == nil then return true end
-  return self.config.should_show_items(context, items)
+  if self.config.should_show_items ~= nil and not self.config.should_show_items(context, items) then return false end
+
+  return true
 end
 
 function source:transform_items(context, items)
@@ -154,11 +163,15 @@ end
 
 --- Execute ---
 
-function source:execute(context, item)
+function source:execute(context, item, default_implementation)
   if self.module.execute == nil then
-    return async.task.new(function(resolve) resolve() end)
+    default_implementation()
+    return async.task.empty()
   end
-  return async.task.new(function(resolve) return self.module:execute(context, item, resolve) end)
+
+  return async.task.new(
+    function(resolve) return self.module:execute(context, item, resolve, default_implementation) end
+  )
 end
 
 --- Signature help ---

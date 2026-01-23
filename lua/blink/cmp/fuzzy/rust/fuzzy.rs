@@ -1,22 +1,33 @@
 // TODO: refactor this heresy
 
-use crate::frecency::FrecencyTracker;
+use crate::frecency::FrecencyDB;
 use crate::keyword;
 use crate::lsp_item::LspItem;
+use crate::sort::Sort;
+use frizbee::Match;
 use mlua::prelude::*;
 use mlua::FromLua;
 use mlua::Lua;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-#[derive(Clone, Hash)]
+#[derive(Clone)]
 pub struct FuzzyOptions {
-    match_suffix: bool,
-    max_typos: u16,
-    use_frecency: bool,
-    use_proximity: bool,
-    nearby_words: Option<Vec<String>>,
-    snippet_score_offset: i32,
+    pub match_suffix: bool,
+    pub max_typos: u16,
+    pub use_frecency: bool,
+    pub use_proximity: bool,
+    pub nearby_words: Option<Vec<String>>,
+    pub snippet_score_offset: i32,
+    pub sorts: Option<Vec<Sort>>,
+}
+
+#[derive(Clone)]
+pub struct FuzzyMatch<'a> {
+    pub provider_idx: u16,
+    pub mtch: Match,
+    pub item: &'a LspItem,
+    pub score: i32,
 }
 
 impl FromLua for FuzzyOptions {
@@ -28,6 +39,15 @@ impl FromLua for FuzzyOptions {
             let use_proximity: bool = tab.get("use_proximity").unwrap_or_default();
             let nearby_words: Option<Vec<String>> = tab.get("nearby_words").ok();
             let snippet_score_offset: i32 = tab.get("snippet_score_offset").unwrap_or_default();
+            let sorts: Option<Vec<String>> = tab.get("sorts").ok();
+            let sorts = sorts
+                .map(|sorts| {
+                    sorts
+                        .iter()
+                        .map(|s| s.try_into())
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .transpose()?;
 
             Ok(FuzzyOptions {
                 match_suffix,
@@ -36,6 +56,7 @@ impl FromLua for FuzzyOptions {
                 use_proximity,
                 nearby_words,
                 snippet_score_offset,
+                sorts,
             })
         } else {
             Err(mlua::Error::FromLuaConversionError {
@@ -54,32 +75,35 @@ fn group_by_needle(
     match_suffix: bool,
 ) -> HashMap<String, Vec<(usize, String)>> {
     let mut items_by_needle: HashMap<String, Vec<(usize, String)>> = HashMap::new();
+    let keyword_range = keyword::get_keyword_range(line, cursor_col, match_suffix);
     for (idx, item_text) in haystack.iter().enumerate() {
-        let needle = keyword::guess_keyword_from_item(item_text, line, cursor_col, match_suffix);
+        let needle = keyword::guess_keyword(keyword_range, item_text, line);
         let entry = items_by_needle.entry(needle).or_default();
         entry.push((idx, item_text.to_string()));
     }
     items_by_needle
 }
 
-pub fn fuzzy(
+pub fn fuzzy<'a>(
+    provider_idx: u16,
     line: &str,
     cursor_col: usize,
-    haystack: &[LspItem],
-    frecency: &FrecencyTracker,
+    haystack: &'a [LspItem],
+    frecency: Option<&FrecencyDB>,
     opts: FuzzyOptions,
-) -> (Vec<i32>, Vec<u32>, Vec<bool>) {
+) -> Vec<FuzzyMatch<'a>> {
     let haystack_labels = haystack
         .iter()
         .map(|s| s.filter_text.clone().unwrap_or(s.label.clone()))
         .collect::<Vec<_>>();
-    let options = frizbee::Options {
+    let config = frizbee::Config {
         max_typos: Some(opts.max_typos),
+        sort: false,
         ..Default::default()
     };
 
     // Items may have different fuzzy matching ranges, so we split them up by needle
-    let mut matches = group_by_needle(line, cursor_col, &haystack_labels, opts.match_suffix)
+    let matches = group_by_needle(line, cursor_col, &haystack_labels, opts.match_suffix)
         .into_iter()
         // Match on each needle and combine
         .flat_map(|(needle, haystack)| {
@@ -89,55 +113,52 @@ pub fn fuzzy(
                     .iter()
                     .map(|(_, str)| str.as_str())
                     .collect::<Vec<_>>(),
-                options,
+                &config,
             );
             for mtch in matches.iter_mut() {
-                mtch.index_in_haystack = haystack[mtch.index_in_haystack].0;
+                mtch.index = haystack[mtch.index as usize].0 as u32;
             }
             matches
         })
         .collect::<Vec<_>>();
 
-    matches.sort_by_key(|mtch| mtch.index_in_haystack);
-
     // Get the score for each match, adding score_offset, frecency and proximity bonus
     let nearby_words: HashSet<String> = HashSet::from_iter(opts.nearby_words.unwrap_or_default());
-    let match_scores = matches
-        .iter()
+    matches
+        .into_iter()
         .map(|mtch| {
-            let frecency_score = if opts.use_frecency {
-                frecency.get_score(&haystack[mtch.index_in_haystack]) as i32
-            } else {
-                0
-            };
+            let frecency_score = frecency
+                .map(|frecency| {
+                    frecency
+                        .get_score(&(&haystack[mtch.index as usize]).into())
+                        .unwrap_or(0.)
+                        .min(6.)
+                        .round() as i32
+                })
+                .unwrap_or(0);
             let nearby_words_score = if opts.use_proximity {
                 nearby_words
-                    .get(&haystack_labels[mtch.index_in_haystack])
+                    .get(&haystack_labels[mtch.index as usize])
                     .map(|_| 2)
                     .unwrap_or(0)
             } else {
                 0
             };
-            let mut score_offset = haystack[mtch.index_in_haystack].score_offset;
+            let mut score_offset = haystack[mtch.index as usize].score_offset;
             // 15 = snippet
             // TODO: use an enum for the kind
-            if haystack[mtch.index_in_haystack].kind == 15 {
+            if haystack[mtch.index as usize].kind == 15 {
                 score_offset += opts.snippet_score_offset;
             }
 
-            (mtch.score as i32) + frecency_score + nearby_words_score + score_offset
+            FuzzyMatch {
+                provider_idx,
+                item: &haystack[mtch.index as usize],
+                score: (mtch.score as i32) + frecency_score + nearby_words_score + score_offset,
+                mtch,
+            }
         })
-        .collect::<Vec<_>>();
-
-    // Return scores and indices
-    (
-        match_scores,
-        matches
-            .iter()
-            .map(|mtch| mtch.index_in_haystack as u32)
-            .collect::<Vec<_>>(),
-        matches.iter().map(|mtch| mtch.exact).collect::<Vec<_>>(),
-    )
+        .collect::<Vec<_>>()
 }
 
 pub fn fuzzy_matched_indices(
@@ -146,20 +167,26 @@ pub fn fuzzy_matched_indices(
     haystack: &[String],
     match_suffix: bool,
 ) -> Vec<Vec<usize>> {
+    let config = frizbee::Config {
+        max_typos: None,
+        sort: false,
+        ..Default::default()
+    };
     let mut matches = group_by_needle(line, cursor_col, haystack, match_suffix)
         .into_iter()
         .flat_map(|(needle, haystack)| {
-            frizbee::match_list_for_matched_indices(
-                &needle,
-                &haystack
-                    .iter()
-                    .map(|(_, str)| str.as_str())
-                    .collect::<Vec<_>>(),
-            )
-            .into_iter()
-            .enumerate()
-            .map(|(idx, matched_indices)| (haystack[idx].0, matched_indices))
-            .collect::<Vec<_>>()
+            let needle = needle.as_str();
+            haystack
+                .into_iter()
+                .map(|(idx, haystack)| {
+                    (
+                        idx,
+                        frizbee::match_indices(needle, haystack, &config)
+                            .map(|m| m.indices)
+                            .unwrap_or_default(),
+                    )
+                })
+                .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
     matches.sort_by_key(|mtch| mtch.0);

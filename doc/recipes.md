@@ -1,22 +1,37 @@
 # Recipes
 
+Feel free to open a PR with any of your own recipes!
+
 [[toc]]
 
 ## General
 
-### Disable per filetype
+### Disable per filetype/buffer
+
+You may change the `enabled` function to return `false` for any case you'd like to disable completion.
 
 ```lua
-enabled = function()
-  return not vim.tbl_contains({ "lua", "markdown" }, vim.bo.filetype)
-    and vim.bo.buftype ~= "prompt"
-    and vim.b.completion ~= false
-end,
+enabled = function() return not vim.tbl_contains({ "lua", "markdown" }, vim.bo.filetype) end,
+```
+
+or set `vim.b.completion = false` on the buffer
+
+```lua
+-- via an autocmd
+vim.api.nvim_create_autocmd('BufEnter', {
+  pattern = '*.lua',
+  callback = function()
+    vim.b.completion = false
+  end,
+})
+
+-- or via ftplugin/some-filetype.lua
+vim.b.completion = false
 ```
 
 ### Disable completion in *only* shell command mode
 
-Windows when inside of git bash or WSL may cause a hang with shell commands. This disables cmdline completions only when running shell commands ( i.e. [ ':!' , ':%!' ] ), but still allows completion in other command modes ( i.e. [ ':' , ':help', '/' , '?' ] etc ).
+When inside of git bash or WSL on windows, you may experience a hang with shell commands. The following disables cmdline completions only when running shell commands (e.g. `[':!' , ':%!']`), but still allows completion in other command modes (e.g. `[':' , ':help', '/' , '?']`).
 
 ```lua
 sources = {
@@ -31,29 +46,45 @@ sources = {
 }
 ```
 
+### Disable or delay auto-showing completion menu
+
+You may disable the auto-show behavior of the menu, or delay it by a given number of milliseconds, via the `completion.menu.auto_show` and `completion.menu.auto_show_delay_ms` options.
+
+```lua
+completion = {
+  menu = {
+    -- Disable automatically showing the menu while typing, instead press `<C-space>` (by default) to show it manually
+    auto_show = false,
+    -- or per filetype
+    auto_show = function(ctx, items) return vim.bo.filetype == 'markdown' end,
+
+    -- Delay before showing the completion menu while typing
+    auto_show_delay_ms = 500,
+    -- or per filetype
+    auto_show_delay_ms = function(ctx, items) return vim.bo.filetype == 'markdown' and 1000 or 0 end,
+  }
+}
+```
+
 ### Emacs behavior
 
 Full discussion: https://github.com/Saghen/blink.cmp/issues/1367
 
-Tab: If completion hasn't been triggered yet, insert the first suggestion; if it has, cycle to the next suggestion.
-
-Shift-Tab: Navigate to the previous suggestion or cancel completion if currently on the first one.
-
 ```lua
--- helper function to check if there's a word before the cursor.
 local has_words_before = function()
-  local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+  local col = vim.api.nvim_win_get_cursor(0)[2]
   if col == 0 then
     return false
   end
-  local text = vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]
-  return text:sub(col, col):match("%s") == nil
+  local line = vim.api.nvim_get_current_line()
+  return line:sub(col, col):match("%s") == nil
 end
 
 -- in your blink configuration
 keymap = {
   preset = 'none',
 
+  -- If completion hasn't been triggered yet, insert the first suggestion; if it has, cycle to the next suggestion.
   ['<Tab>'] = {
     function(cmp)
       if has_words_before() then
@@ -62,6 +93,7 @@ keymap = {
     end,
     'fallback',
   },
+  -- Navigate to the previous suggestion or cancel completion if currently on the first one.
   ['<S-Tab>'] = { 'insert_prev' },
 },
 completion = {
@@ -71,6 +103,8 @@ completion = {
 ```
 
 ### Border
+
+On neovim 0.11+, you may use the `vim.o.winborder` option to set the default border for all floating windows. You may override that option with your own border value as shown below.
 
 ```lua
 completion = {
@@ -82,7 +116,7 @@ signature = { window = { border = 'single' } },
 
 ### Select Nth item from the list
 
-Here's an example configuration that allows you to select the nth item from the list, based on [#382](https://github.com/Saghen/blink.cmp/issues/382):
+Based on [#382](https://github.com/Saghen/blink.cmp/issues/382)
 
 ```lua
 keymap = {
@@ -113,6 +147,49 @@ completion = {
 }
 ```
 
+### Accept a completion without visual feedback
+
+Full discussion: https://github.com/saghen/blink.cmp/discussions/2304
+
+You can accept a completion item without visual feedback (when the menu or ghost
+text is not visible) by using the `force` option.
+
+**Option 1: Select the first item if nothing is selected, then accept it**
+
+```lua
+['<C-y>'] = {
+  function(cmp)
+    return cmp.select_and_accept({ force = true })
+  end,
+  'fallback',
+}
+```
+
+**Option 2: Accept the first item in the list**
+
+```lua
+['<C-y>'] = {
+  function(cmp)
+    return cmp.accept({ index = 1, force = true })
+  end,
+  'fallback',
+}
+```
+
+**Option 3: If there is only one completion candidate, select and accept it without showing the completion menu; otherwise, open the completion menu and select the first candidate** 
+
+```lua
+['<C-y>'] = {
+  function(cmp)
+    return cmp.show_and_insert_or_accept_single({ force = true })
+  end,
+  'fallback',
+}
+```
+
+Note that if you already pre-select the first item in the list (see
+[`completion.list`](./configuration/completion.md#list)), the `index` option is not needed.
+
 ### Hide Copilot on suggestion
 
 ```lua
@@ -132,10 +209,39 @@ vim.api.nvim_create_autocmd('User', {
 })
 ```
 
+### Avoid multi-line completion ghost text
+
+See [nvim-cmp#1955](https://github.com/hrsh7th/nvim-cmp/pull/1955#issue-2341857764) for an example of what this looks like.
+
+When ghost text is enabled (`completion.ghost_text.enabled = true`), you may want the menu to avoid overlapping with the ghost text. You may provide a custom `completion.menu.direction_priority` function to achieve this
+
+```lua
+completion = {
+  menu = {
+    direction_priority = function()
+      local ctx = require('blink.cmp').get_context()
+      local item = require('blink.cmp').get_selected_item()
+      if ctx == nil or item == nil then return { 's', 'n' } end
+
+      local item_text = item.textEdit ~= nil and item.textEdit.newText or item.insertText or item.label
+      local is_multi_line = item_text:find('\n') ~= nil
+
+      -- after showing the menu upwards, we want to maintain that direction
+      -- until we re-open the menu, so store the context id in a global variable
+      if is_multi_line or vim.g.blink_cmp_upwards_ctx_id == ctx.id then
+        vim.g.blink_cmp_upwards_ctx_id = ctx.id
+        return { 'n', 's' }
+      end
+      return { 's', 'n' }
+    end,
+  },
+},
+```
+
 ### Show on newline, tab and space
 
 ::: warning
-This may not be working as expected at the moment. Please see [#836](https://github.com/Saghen/blink.cmp/issues/836)
+Not working as expected, see [#836](https://github.com/Saghen/blink.cmp/issues/836)
 :::
 
 Note that you may want to add the override to other sources as well, since if the LSP doesn't return any items, we won't show the menu if it was triggered by any of these three characters.
@@ -152,12 +258,13 @@ sources.providers.lsp.override.get_trigger_characters = function(self)
 end
 ```
 
-
 ## Fuzzy (sorting/filtering)
+
+[See the full docs](./configuration/fuzzy.md)
 
 ### Always prioritize exact matches
 
-By default, the fuzzy matcher will give a bonus score of 4 to exact matches. If you want to ensure that exact matches are always prioritized, you may set
+By default, the fuzzy matcher will give a bonus score of 4 to exact matches. If you want to ensure that exact matches are always prioritized, you may set:
 
 ```lua
 fuzzy = {
@@ -189,88 +296,33 @@ fuzzy = {
 }
 ```
 
-## Completion menu drawing
+### Exclude keywords/constants from autocomplete
 
-### `mini.icons`
-
-[Original discussion](https://github.com/Saghen/blink.cmp/discussions/458)
+Removes language keywords/constants (if, else, while, etc.) provided by the language server from completion results. Useful if you prefer to use builtin or custom snippets for such constructs.
 
 ```lua
-completion = {
-  menu = {
-    draw = {
-      components = {
-        kind_icon = {
-          ellipsis = false,
-          text = function(ctx)
-            local kind_icon, _, _ = require('mini.icons').get('lsp', ctx.kind)
-            return kind_icon
-          end,
-          -- Optionally, you may also use the highlights from mini.icons
-          highlight = function(ctx)
-            local _, hl, _ = require('mini.icons').get('lsp', ctx.kind)
-            return hl
-          end,
-        }
-      }
-    }
-  }
-}
-```
-
-### `nvim-web-devicons` + `lspkind`
-
-[Original discussion](https://github.com/Saghen/blink.cmp/discussions/1146)
-
-```lua
-completion = {
-  menu = {
-    draw = {
-      components = {
-        kind_icon = {
-          ellipsis = false,
-          text = function(ctx)
-            local lspkind = require("lspkind")
-            local icon = ctx.kind_icon
-            if vim.tbl_contains({ "Path" }, ctx.source_name) then
-                local dev_icon, _ = require("nvim-web-devicons").get_icon(ctx.label)
-                if dev_icon then
-                    icon = dev_icon
-                end
-            else
-                icon = require("lspkind").symbolic(ctx.kind, {
-                    mode = "symbol",
-                })
-            end
-
-            return icon .. ctx.icon_gap
-          end,
-
-          -- Optionally, use the highlight groups from nvim-web-devicons
-          -- You can also add the same function for `kind.highlight` if you want to
-          -- keep the highlight groups in sync with the icons.
-          highlight = function(ctx)
-            local hl = ctx.kind_hl
-            if vim.tbl_contains({ "Path" }, ctx.source_name) then
-              local dev_icon, dev_hl = require("nvim-web-devicons").get_icon(ctx.label)
-              if dev_icon then
-                hl = dev_hl
-              end
-            end
-            return hl
-          end,
-        }
-      }
-    }
-  }
+sources = {
+  providers = {
+    lsp = {
+      name = 'LSP',
+      module = 'blink.cmp.sources.lsp',
+      transform_items = function(_, items)
+        return vim.tbl_filter(function(item)
+          return item.kind ~= require('blink.cmp.types').CompletionItemKind.Keyword
+        end, items)
+      end,
+    },
+  },
 }
 ```
 
 ## Sources
 
+[See the full docs](./configuration/sources.md)
+
 ### Buffer completion from all open buffers
 
-The default behavior is to only show completions from **visible** "normal" buffers (i.e. it wouldn't include neo-tree). This will instead show completions from all buffers, even if they're not visible on screen. Note that the performance impact of this has not been tested.
+The default behavior is to only show completions from **visible** "normal" buffers (e.g. it wouldn't include neo-tree). This will instead show completions from all buffers, even if they're not visible on screen. Note that the performance impact of this has not been tested.
 
 ```lua
 sources = {
@@ -296,10 +348,10 @@ sources = {
 ```lua
 sources.default = function(ctx)
   local success, node = pcall(vim.treesitter.get_node)
-  if vim.bo.filetype == 'lua' then
-    return { 'lsp', 'path' }
-  elseif success and node and vim.tbl_contains({ 'comment', 'line_comment', 'block_comment' }, node:type()) then
+  if success and node and vim.tbl_contains({ 'comment', 'line_comment', 'block_comment' }, node:type()) then
     return { 'buffer' }
+  elseif vim.bo.filetype == 'lua' then
+    return { 'lsp', 'path' }
   else
     return { 'lsp', 'path', 'snippets', 'buffer' }
   end
@@ -313,6 +365,18 @@ Trigger characters are defined by the sources. For example, for Lua, the trigger
 ```lua
 sources.providers.snippets.should_show_items = function(ctx)
   return ctx.trigger.initial_kind ~= 'trigger_character'
+end
+```
+
+### Set source kind icon and name
+
+```lua
+sources.providers.copilot.transform_items = function(ctx, items)
+  for _, item in ipairs(items) do
+    item.kind_icon = ''
+    item.kind_name = 'Copilot'
+  end
+  return items
 end
 ```
 
@@ -347,6 +411,147 @@ sources = {
 ```
 
 This also makes it easy to `:cwd` to the desired base directory for path completion.
+
+## Completion menu drawing
+
+[See the full docs](./configuration/completion.md#menu-draw)
+
+### Kind icon background
+
+You'll need to configure your highlights (`BlinkCmpKind` or `BlinkCmpKind<kind>`) to your desired background and foreground colors.
+
+```lua
+completion = {
+  menu = {
+    draw = {
+      padding = { 0, 1 }, -- padding only on right side
+      components = {
+        kind_icon = {
+          text = function(ctx) return ' ' .. ctx.kind_icon .. ctx.icon_gap .. ' ' end
+        }
+      }
+    }
+  }
+}
+```
+
+### `mini.icons`
+
+[Original discussion](https://github.com/Saghen/blink.cmp/discussions/458)
+
+```lua
+completion = {
+  menu = {
+    draw = {
+      components = {
+        kind_icon = {
+          text = function(ctx)
+            local kind_icon, _, _ = require('mini.icons').get('lsp', ctx.kind)
+            return kind_icon
+          end,
+          -- (optional) use highlights from mini.icons
+          highlight = function(ctx)
+            local _, hl, _ = require('mini.icons').get('lsp', ctx.kind)
+            return hl
+          end,
+        },
+        kind = {
+          -- (optional) use highlights from mini.icons
+          highlight = function(ctx)
+            local _, hl, _ = require('mini.icons').get('lsp', ctx.kind)
+            return hl
+          end,
+        }
+      }
+    }
+  }
+}
+```
+
+### `nvim-web-devicons` + `lspkind`
+
+[Original discussion](https://github.com/Saghen/blink.cmp/discussions/1146)
+
+```lua
+completion = {
+  menu = {
+    draw = {
+      components = {
+        kind_icon = {
+          text = function(ctx)
+            local icon = ctx.kind_icon
+            if vim.tbl_contains({ "Path" }, ctx.source_name) then
+                local dev_icon, _ = require("nvim-web-devicons").get_icon(ctx.label)
+                if dev_icon then
+                    icon = dev_icon
+                end
+            else
+                icon = require("lspkind").symbol_map[ctx.kind] or ""
+            end
+
+            return icon .. ctx.icon_gap
+          end,
+
+          -- Optionally, use the highlight groups from nvim-web-devicons
+          -- You can also add the same function for `kind.highlight` if you want to
+          -- keep the highlight groups in sync with the icons.
+          highlight = function(ctx)
+            local hl = ctx.kind_hl
+            if vim.tbl_contains({ "Path" }, ctx.source_name) then
+              local dev_icon, dev_hl = require("nvim-web-devicons").get_icon(ctx.label)
+              if dev_icon then
+                hl = dev_hl
+              end
+            end
+            return hl
+          end,
+        }
+      }
+    }
+  }
+}
+```
+
+### `mini.icons` + `lspkind`
+
+Uses [mini.icons](https://github.com/echasnovski/mini.icons) to display icons for filetypes and [lspkind](https://github.com/onsails/lspkind-nvim) for LSP kinds.
+
+```lua
+completion = {
+  menu = {
+    draw = {
+      components = {
+        kind_icon = {
+          text = function(ctx)
+            if ctx.source_name ~= "Path" then
+              return require("lspkind").symbol_map[ctx.kind] or "" .. ctx.icon_gap
+            end
+
+            local is_unknown_type = vim.tbl_contains({ "link", "socket", "fifo", "char", "block", "unknown" }, ctx.item.data.type)
+            local mini_icon, _ = require("mini.icons").get(
+              is_unknown_type and "os" or ctx.item.data.type,
+              is_unknown_type and "" or ctx.label
+            )
+
+            return (mini_icon or ctx.kind_icon) .. ctx.icon_gap
+          end,
+
+          highlight = function(ctx)
+            if ctx.source_name ~= "Path" then return ctx.kind_hl end
+
+            local is_unknown_type = vim.tbl_contains({ "link", "socket", "fifo", "char", "block", "unknown" }, ctx.item.data.type)
+            local mini_icon, mini_hl = require("mini.icons").get(
+              is_unknown_type and "os" or ctx.item.data.type,
+              is_unknown_type and "" or ctx.label
+            )
+            return mini_icon ~= nil and mini_hl or ctx.kind_hl
+          end,
+        }
+      }
+    }
+  }
+}
+```
 
 ## For writers
 

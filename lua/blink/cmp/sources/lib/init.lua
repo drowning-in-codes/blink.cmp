@@ -1,11 +1,12 @@
 local async = require('blink.cmp.lib.async')
 local config = require('blink.cmp.config')
+local deduplicate = require('blink.cmp.lib.utils').deduplicate
 
 --- @class blink.cmp.Sources
 --- @field completions_queue blink.cmp.SourcesQueue | nil
 --- @field current_signature_help blink.cmp.Task | nil
---- @field sources_registered boolean
 --- @field providers table<string, blink.cmp.SourceProvider>
+--- @field per_filetype_provider_ids table<string, string[]>
 --- @field completions_emitter blink.cmp.EventEmitter<blink.cmp.SourceCompletionsEvent>
 ---
 --- @field get_all_providers fun(): blink.cmp.SourceProvider[]
@@ -13,6 +14,7 @@ local config = require('blink.cmp.config')
 --- @field get_enabled_providers fun(mode: blink.cmp.Mode): table<string, blink.cmp.SourceProvider>
 --- @field get_provider_by_id fun(id: string): blink.cmp.SourceProvider
 --- @field get_trigger_characters fun(mode: blink.cmp.Mode): string[]
+--- @field add_filetype_provider_id fun(filetype: string, provider_id: string)
 ---
 --- @field emit_completions fun(context: blink.cmp.Context, responses: table<string, blink.cmp.CompletionResponse>)
 --- @field request_completions fun(context: blink.cmp.Context)
@@ -20,7 +22,7 @@ local config = require('blink.cmp.config')
 --- @field apply_max_items_for_completions fun(context: blink.cmp.Context, items: blink.cmp.CompletionItem[]): blink.cmp.CompletionItem[]
 --- @field listen_on_completions fun(callback: fun(context: blink.cmp.Context, items: blink.cmp.CompletionItem[]))
 --- @field resolve fun(context: blink.cmp.Context, item: blink.cmp.CompletionItem): blink.cmp.Task
---- @field execute fun(context: blink.cmp.Context, item: blink.cmp.CompletionItem): blink.cmp.Task
+--- @field execute fun(context: blink.cmp.Context, item: blink.cmp.CompletionItem, default_implementation: fun(context?: blink.cmp.Context, item?: blink.cmp.CompletionItem)): blink.cmp.Task
 ---
 --- @field get_signature_help_trigger_characters fun(mode: blink.cmp.Mode): { trigger_characters: string[], retrigger_characters: string[] }
 --- @field get_signature_help fun(context: blink.cmp.SignatureHelpContext): blink.cmp.Task
@@ -38,7 +40,8 @@ local config = require('blink.cmp.config')
 local sources = {
   completions_queue = nil,
   providers = {},
-  completions_emitter = require('blink.cmp.lib.event_emitter').new('source_completions', 'BlinkCmpSourceCompletions'),
+  per_filetype_provider_ids = {},
+  completions_emitter = require('blink.cmp.lib.event_emitter').new('source_completions'),
 }
 
 function sources.get_all_providers()
@@ -50,18 +53,45 @@ function sources.get_all_providers()
 end
 
 function sources.get_enabled_provider_ids(mode)
-  if (mode == 'cmdline' and not config.cmdline.enabled) or (mode == 'term' and not config.term.enabled) then
-    return {}
+  -- Mode-specific sources
+  if vim.tbl_contains({ 'cmdline', 'cmdwin', 'term' }, mode) then
+    -- 'cmdwin' use the 'cmdline' source provider
+    if mode == 'cmdwin' then mode = 'cmdline' end
+
+    if not config[mode].enabled then return {} end
+
+    local providers = config[mode].sources
+    if type(providers) == 'function' then providers = providers() end
+
+    return deduplicate(providers)
   end
 
-  local enabled_providers = mode == 'cmdline' and config.cmdline.sources
-    or mode == 'term' and config.term.sources
-    or config.sources.per_filetype[vim.bo.filetype]
-    or config.sources.default
+  -- Default sources
+  local default_providers = config.sources.default
+  if type(default_providers) == 'function' then default_providers = default_providers() end
+  --- @cast default_providers string[]
 
-  if type(enabled_providers) == 'function' then enabled_providers = enabled_providers() end
-  --- @cast enabled_providers string[]
-  return require('blink.cmp.lib.utils').deduplicate(enabled_providers)
+  -- Filetype-specific sources
+  local providers = {}
+  local user_defined_providers = false -- whether the user defined any per-filetype providers
+  for _, filetype in pairs(vim.split(vim.bo.filetype, '.', { plain = true, trimempty = true })) do
+    -- User-defined per-filetype
+    if config.sources.per_filetype[filetype] ~= nil then
+      local filetype_providers = config.sources.per_filetype[filetype]
+      if type(filetype_providers) == 'function' then filetype_providers = filetype_providers() end
+
+      vim.list_extend(providers, filetype_providers)
+      if filetype_providers.inherit_defaults then vim.list_extend(providers, default_providers) end
+
+      user_defined_providers = true
+    end
+
+    -- Injected programmatically via API
+    vim.list_extend(providers, sources.per_filetype_provider_ids[filetype] or {})
+  end
+  if not user_defined_providers then vim.list_extend(providers, default_providers) end
+
+  return deduplicate(providers)
 end
 
 function sources.get_enabled_providers(mode)
@@ -89,7 +119,7 @@ function sources.get_provider_by_id(provider_id)
     'Requested provider "'
       .. provider_id
       .. '" has not been configured. Available providers: '
-      .. vim.fn.join(vim.tbl_keys(sources.providers), ', ')
+      .. table.concat(vim.tbl_keys(sources.providers), ', ')
   )
 
   -- initialize the provider if it hasn't been initialized yet
@@ -99,6 +129,11 @@ function sources.get_provider_by_id(provider_id)
   end
 
   return sources.providers[provider_id]
+end
+
+function sources.add_filetype_provider_id(filetype, provider_id)
+  if sources.per_filetype_provider_ids[filetype] == nil then sources.per_filetype_provider_ids[filetype] = {} end
+  table.insert(sources.per_filetype_provider_ids[filetype], provider_id)
 end
 
 --- Completion ---
@@ -191,7 +226,7 @@ end
 
 --- Execute ---
 
-function sources.execute(context, item)
+function sources.execute(context, item, default_implementation)
   local item_source = nil
   for _, source in pairs(sources.providers) do
     if source.id == item.source_id then
@@ -204,7 +239,7 @@ function sources.execute(context, item)
   end
 
   return item_source
-    :execute(context, item)
+    :execute(context, item, default_implementation)
     :catch(function(err) vim.print('failed to execute item with error: ' .. err) end)
 end
 
@@ -229,7 +264,7 @@ function sources.get_signature_help(context)
     table.insert(tasks, source:get_signature_help(context))
   end
 
-  sources.current_signature_help = async.task.await_all(tasks):map(function(signature_helps)
+  sources.current_signature_help = async.task.all(tasks):map(function(signature_helps)
     return vim.tbl_filter(function(signature_help) return signature_help ~= nil end, signature_helps)
   end)
   return sources.current_signature_help

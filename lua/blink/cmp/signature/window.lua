@@ -13,10 +13,11 @@ local sources = require('blink.cmp.sources.lib')
 local menu = require('blink.cmp.completion.windows.menu')
 
 local signature = {
-  win = require('blink.cmp.lib.window').new({
+  win = require('blink.cmp.lib.window').new('signature', {
     min_width = config.min_width,
     max_width = config.max_width,
     max_height = config.max_height,
+    default_border = 'padded',
     border = config.border,
     winblend = config.winblend,
     winhighlight = config.winhighlight,
@@ -72,22 +73,34 @@ function signature.open_with_signature_help(context, signature_help)
     sources.get_signature_help_trigger_characters().trigger_characters
   )
   if active_highlight ~= nil then
-    -- TODO: nvim 0.11+ returns the start and end line which we should use
-    local start_region = vim.fn.has('nvim-0.11.0') == 1 and active_highlight[2] or active_highlight[1]
-    local end_region = vim.fn.has('nvim-0.11.0') == 1 and active_highlight[4] or active_highlight[2]
-
-    vim.api.nvim_buf_add_highlight(
-      signature.win:get_buf(),
-      require('blink.cmp.config').appearance.highlight_ns,
-      'BlinkCmpSignatureHelpActiveParameter',
-      0,
-      start_region,
-      end_region
-    )
+    if vim.fn.has('nvim-0.11.0') == 1 then
+      local start_line = active_highlight[1] - 1
+      local start_col = active_highlight[2]
+      local end_line = active_highlight[3] - 1
+      local end_col = active_highlight[4]
+      vim.api.nvim_buf_set_extmark(
+        signature.win:get_buf(),
+        require('blink.cmp.config').appearance.highlight_ns,
+        start_line,
+        start_col,
+        { end_line = end_line, end_col = end_col, hl_group = 'BlinkCmpSignatureHelpActiveParameter' }
+      )
+    else
+      local start_col = active_highlight[1]
+      local end_col = active_highlight[2]
+      vim.api.nvim_buf_set_extmark(
+        signature.win:get_buf(),
+        require('blink.cmp.config').appearance.highlight_ns,
+        0,
+        start_col,
+        { end_col = end_col, hl_group = 'BlinkCmpSignatureHelpActiveParameter' }
+      )
+    end
   end
 
   signature.win:open()
   signature.update_position()
+  signature.scroll_up(1)
 end
 
 function signature.close()
@@ -100,7 +113,7 @@ function signature.scroll_up(amount)
   local top_line = math.max(1, vim.fn.line('w0', winnr) - 1)
   local desired_line = math.max(1, top_line - amount)
 
-  vim.api.nvim_win_set_cursor(signature.win:get_win(), { desired_line, 0 })
+  signature.win:set_cursor({ desired_line, 0 })
 end
 
 function signature.scroll_down(amount)
@@ -109,7 +122,7 @@ function signature.scroll_down(amount)
   local bottom_line = math.max(1, vim.fn.line('w$', winnr) + 1)
   local desired_line = math.min(line_count, bottom_line + amount)
 
-  vim.api.nvim_win_set_cursor(signature.win:get_win(), { desired_line, 0 })
+  signature.win:set_cursor({ desired_line, 0 })
 end
 
 function signature.update_position()
@@ -127,6 +140,14 @@ function signature.update_position()
     local cursor_screen_row = vim.fn.winline()
     local menu_win_is_up = menu_win_config.row - cursor_screen_row < 0
     direction_priority = menu_win_is_up and { 's' } or { 'n' }
+  end
+
+  -- same for popupmenu, we want to place the signature window on the opposite side
+  local popupmenu_pos = vim.fn.pum_getpos()
+  if popupmenu_pos.row ~= nil then
+    local cursor_screen_row = vim.fn.winline()
+    local popupmenu_is_up = popupmenu_pos.row - cursor_screen_row < 0
+    direction_priority = popupmenu_is_up and { 's' } or { 'n' }
   end
 
   local pos = win:get_vertical_direction_and_height(direction_priority, config.max_height)

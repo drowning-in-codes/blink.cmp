@@ -1,5 +1,17 @@
 local async = require('blink.cmp.lib.async')
 
+--- Wraps client to support both 0.11 and 0.10 without deprecation warnings
+--- @param client vim.lsp.Client
+--- @return vim.lsp.Client
+local function wrap_client(client)
+  if vim.fn.has('nvim-0.11') == 1 then return client end
+
+  return setmetatable({
+    cancel_request = function(_, ...) return client.cancel_request(...) end,
+    request = function(_, ...) return client.request(...) end,
+  }, { __index = client })
+end
+
 --- @class blink.cmp.LSPSourceOpts
 --- @field tailwind_color_icon? string
 
@@ -49,11 +61,12 @@ function lsp:get_completions(context, callback)
     function(client) return client.server_capabilities and client.server_capabilities.completionProvider end,
     vim.lsp.get_clients({ bufnr = 0, method = 'textDocument/completion' })
   )
+  clients = vim.tbl_map(wrap_client, clients)
 
   -- TODO: implement a timeout before returning the menu as-is. In the future, it would be neat
   -- to detect slow LSPs and consistently run them async
   local task = async.task
-    .await_all(
+    .all(
       vim.tbl_map(
         function(client) return completion_lib.get_completion_for_client(context, client, self.opts) end,
         clients
@@ -80,11 +93,12 @@ function lsp:resolve(item, callback)
     callback(item)
     return
   end
+  client = wrap_client(client)
 
   -- strip blink specific fields to avoid decoding errors on some LSPs
   item = require('blink.cmp.sources.lib.utils').blink_item_to_lsp_item(item)
 
-  local success, request_id = client.request('completionItem/resolve', item, function(error, resolved_item)
+  local success, request_id = client:request('completionItem/resolve', item, function(error, resolved_item)
     if error or resolved_item == nil then
       callback(item)
       return
@@ -109,7 +123,7 @@ function lsp:resolve(item, callback)
   end)
   if not success then callback(item) end
   if request_id ~= nil then
-    return function() client.cancel_request(request_id) end
+    return function() client:cancel_request(request_id) end
   end
 end
 
@@ -174,14 +188,16 @@ end
 
 --- Execute ---
 
-function lsp:execute(source, item, callback)
+function lsp:execute(ctx, item, callback, default_implementation)
+  default_implementation()
+
   local client = vim.lsp.get_client_by_id(item.client_id)
   if client and item.command then
     if vim.fn.has('nvim-0.11') == 1 then
-      client:exec_cmd(item.command, { bufnr = source.bufnr }, function() callback() end)
+      client:exec_cmd(item.command, { bufnr = ctx.bufnr }, function() callback() end)
     else
       -- TODO: remove this once 0.11 is the minimum version
-      client:_exec_cmd(item.command, { bufnr = source.bufnr }, function() callback() end)
+      client:_exec_cmd(item.command, { bufnr = ctx.bufnr }, function() callback() end)
     end
   else
     callback()

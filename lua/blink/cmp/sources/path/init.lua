@@ -9,6 +9,8 @@
 --- @field label_trailing_slash boolean
 --- @field get_cwd fun(context: blink.cmp.Context): string
 --- @field show_hidden_files_by_default boolean
+--- @field ignore_root_slash boolean
+--- @field max_entries number  Maximum number of files/directories to return. This limits memory use and responsiveness for very large folders. Defaults to 10000
 
 --- @class blink.cmp.Source
 --- @field opts blink.cmp.PathOpts
@@ -23,16 +25,20 @@ function path.new(opts)
     label_trailing_slash = true,
     get_cwd = function(context) return vim.fn.expand(('#%d:p:h'):format(context.bufnr)) end,
     show_hidden_files_by_default = false,
+    ignore_root_slash = false,
+    max_entries = 10000,
   })
   require('blink.cmp.config.utils').validate('sources.providers.path', {
     trailing_slash = { opts.trailing_slash, 'boolean' },
     label_trailing_slash = { opts.label_trailing_slash, 'boolean' },
     get_cwd = { opts.get_cwd, 'function' },
     show_hidden_files_by_default = { opts.show_hidden_files_by_default, 'boolean' },
+    ignore_root_slash = { opts.ignore_root_slash, 'boolean' },
+    max_entries = { opts.max_entries, 'number' },
   }, opts)
 
   self.opts = opts
-  return self
+  return self --[[@as blink.cmp.Source]]
 end
 
 function path:get_trigger_characters() return { '/', '.', '\\' } end
@@ -43,7 +49,7 @@ function path:get_completions(context, callback)
 
   local lib = require('blink.cmp.sources.path.lib')
 
-  local dirname = lib.dirname(self.opts.get_cwd, context)
+  local dirname = lib.dirname(self.opts, context)
   if not dirname then return callback({ is_incomplete_forward = false, is_incomplete_backward = false, items = {} }) end
 
   local include_hidden = self.opts.show_hidden_files_by_default
@@ -52,6 +58,7 @@ function path:get_completions(context, callback)
       string.sub(context.line, context.bounds.start_col - 1, context.bounds.start_col - 1) == '.'
       and context.bounds.length > 0
     )
+
   lib
     .candidates(context, dirname, include_hidden, self.opts)
     :map(
@@ -59,6 +66,7 @@ function path:get_completions(context, callback)
         callback({ is_incomplete_forward = false, is_incomplete_backward = false, items = candidates })
       end
     )
+    ---@diagnostic disable-next-line: missing-return
     :catch(function() callback() end)
 end
 

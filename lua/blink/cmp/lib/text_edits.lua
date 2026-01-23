@@ -11,12 +11,14 @@ function text_edits.apply(text_edit, additional_text_edits)
   additional_text_edits = additional_text_edits or {}
 
   local mode = context.get_mode()
-  assert(mode == 'default' or mode == 'cmdline' or mode == 'term', 'Unsupported mode for text edits: ' .. mode)
+  assert(
+    vim.tbl_contains({ 'default', 'cmdline', 'cmdwin', 'term' }, mode),
+    'Unsupported mode for text edits: ' .. mode
+  )
 
-  if mode == 'default' then
-    -- writing to dot repeat may fail in cases like `q:`, which aren't easy to detect
-    -- so we ignore the error
-    if config.completion.accept.dot_repeat then pcall(text_edits.write_to_dot_repeat, text_edit) end
+  if mode == 'default' or mode == 'cmdwin' then
+    -- writing to dot repeat may fail in command-line window
+    if mode == 'default' and config.completion.accept.dot_repeat then text_edits.write_to_dot_repeat(text_edit) end
 
     local all_edits = utils.shallow_copy(additional_text_edits)
     table.insert(all_edits, text_edit)
@@ -25,7 +27,11 @@ function text_edits.apply(text_edit, additional_text_edits)
     local cur_bufnr = vim.api.nvim_get_current_buf()
     local prev_buflisted = vim.bo[cur_bufnr].buflisted
     vim.lsp.util.apply_text_edits(all_edits, cur_bufnr, 'utf-8')
-    vim.bo[cur_bufnr].buflisted = prev_buflisted
+
+    -- FIXME: restoring buflisted=false on regular file buffers, e.g. gitcommit,
+    -- causes neovim closing the window. Leave them listed to avoid this issue.
+    -- Non-file buffers can be safely restored.
+    if not prev_buflisted and vim.bo[cur_bufnr].buftype ~= '' then vim.bo[cur_bufnr].buflisted = false end
   end
 
   if mode == 'cmdline' then
@@ -147,12 +153,12 @@ function text_edits.get_from_item(item)
   text_edit.replace = nil
   --- @cast text_edit lsp.TextEdit
 
+  local offset_encoding = text_edits.offset_encoding_from_item(item)
   text_edit = text_edits.compensate_for_cursor_movement(text_edit, item.cursor_column, context.get_cursor()[2])
 
   -- convert the offset encoding to utf-8
   -- TODO: we have to do this last because it applies a max on the position based on the length of the line
   -- so it would break the offset code when removing characters at the end of the line
-  local offset_encoding = text_edits.offset_encoding_from_item(item)
   text_edit = text_edits.to_utf_8(text_edit, offset_encoding)
 
   text_edit.range = text_edits.clamp_range_to_bounds(text_edit.range)
@@ -164,14 +170,16 @@ end
 --- since the data might be outdated. We compare the cursor column position
 --- from when the items were fetched versus the current.
 --- HACK: is there a better way?
---- TODO: take into account the offset_encoding
 --- @param text_edit lsp.TextEdit
 --- @param old_cursor_col number Position of the cursor when the text edit was created
 --- @param new_cursor_col number New position of the cursor
+--- @return lsp.TextEdit
 function text_edits.compensate_for_cursor_movement(text_edit, old_cursor_col, new_cursor_col)
   text_edit = vim.deepcopy(text_edit)
+
   local offset = new_cursor_col - old_cursor_col
   text_edit.range['end'].character = text_edit.range['end'].character + offset
+
   return text_edit
 end
 
@@ -215,13 +223,16 @@ end
 --- Clamps the range to the bounds of their respective lines
 --- @param range lsp.Range
 --- @return lsp.Range
---- TODO: clamp start and end lines
 function text_edits.clamp_range_to_bounds(range)
   range = vim.deepcopy(range)
 
+  local line_count = vim.api.nvim_buf_line_count(0)
+
+  range.start.line = math.min(math.max(range.start.line, 0), line_count - 1)
   local start_line = context.get_line(range.start.line)
   range.start.character = math.min(math.max(range.start.character, 0), #start_line)
 
+  range['end'].line = math.min(math.max(range['end'].line, 0), line_count - 1)
   local end_line = context.get_line(range['end'].line)
   range['end'].character = math.min(
     math.max(range['end'].character, range.start.line == range['end'].line and range.start.character or 0),
@@ -300,7 +311,7 @@ end
 
 --- Other plugins may use feedkeys to switch modes, with `i` set. This would
 --- cause neovim to run those feedkeys first, potentially causing our <C-x><C-z> to run
---- in the wrong mode. I.e. if the plugin runs `<Esc>v` (luasnip)
+--- in the wrong mode, e.g. if the plugin runs `<Esc>v` (luasnip)
 ---
 --- In normal and visual mode, these keys cause neovim to go to the background
 --- so we create our own mapping that only runs `<C-x><C-z>` if we're in insert mode
@@ -320,11 +331,13 @@ vim.api.nvim_set_keymap('n', dot_repeat_hack_name, '', opts)
 vim.api.nvim_set_keymap('s', dot_repeat_hack_name, '', opts)
 vim.api.nvim_set_keymap('v', dot_repeat_hack_name, '', opts)
 vim.api.nvim_set_keymap('c', dot_repeat_hack_name, '', opts)
+vim.api.nvim_set_keymap('t', dot_repeat_hack_name, '', opts)
 
 local dot_repeat_buffer = nil
 local function get_dot_repeat_buffer()
   if dot_repeat_buffer == nil or not vim.api.nvim_buf_is_valid(dot_repeat_buffer) then
     dot_repeat_buffer = vim.api.nvim_create_buf(false, true)
+    vim.bo[dot_repeat_buffer].filetype = 'blink-cmp-dot-repeat'
     vim.bo[dot_repeat_buffer].buftype = 'nofile'
   end
   return dot_repeat_buffer
@@ -351,38 +364,44 @@ function text_edits.write_to_dot_repeat(text_edit)
   )
   local chars_to_insert = text_edit.newText
 
-  utils.with_no_autocmds(function()
-    local curr_win = vim.api.nvim_get_current_win()
+  utils.defer_neovide_redraw(function()
+    utils.with_no_autocmds(function()
+      local curr_win = vim.api.nvim_get_current_win()
 
-    -- create temporary floating window and buffer for writing
-    local buf = get_dot_repeat_buffer()
-    local win = vim.api.nvim_open_win(buf, true, {
-      relative = 'win',
-      win = vim.api.nvim_get_current_win(),
-      width = 1,
-      height = 1,
-      row = 0,
-      col = 0,
-      noautocmd = true,
-    })
-    vim.api.nvim_buf_set_text(0, 0, 0, 0, 0, { '_' .. string.rep('a', chars_to_delete) })
-    vim.api.nvim_win_set_cursor(0, { 1, chars_to_delete + 1 })
+      -- create temporary floating window and buffer for writing
+      local buf = get_dot_repeat_buffer()
+      local win = vim.api.nvim_open_win(buf, true, {
+        relative = 'win',
+        win = vim.api.nvim_get_current_win(),
+        width = 1,
+        height = 1,
+        row = 0,
+        col = 0,
+        noautocmd = true,
+      })
+      vim.api.nvim_buf_set_text(buf, 0, 0, 0, 0, { '_' .. string.rep('a', chars_to_delete) })
+      vim.api.nvim_win_set_cursor(0, { 1, chars_to_delete + 1 })
 
-    -- emulate builtin completion (dot repeat)
-    local saved_completeopt = vim.opt.completeopt
-    local saved_shortmess = vim.o.shortmess
-    vim.opt.completeopt = ''
-    if not vim.o.shortmess:match('c') then vim.o.shortmess = vim.o.shortmess .. 'c' end
-    vim.fn.complete(1, { '_' .. chars_to_insert })
-    vim.opt.completeopt = saved_completeopt
-    vim.o.shortmess = saved_shortmess
+      -- emulate builtin completion (dot repeat)
+      local saved_completeopt = vim.opt.completeopt
+      local saved_shortmess = vim.o.shortmess
+      vim.opt.completeopt = ''
+      if not vim.o.shortmess:match('c') then vim.o.shortmess = vim.o.shortmess .. 'c' end
+      vim.fn.complete(1, { '_' .. chars_to_insert })
+      vim.opt.completeopt = saved_completeopt
+      vim.o.shortmess = saved_shortmess
 
-    -- close window and focus original window
-    vim.api.nvim_win_close(win, true)
-    vim.api.nvim_set_current_win(curr_win)
+      -- close window and focus original window
+      vim.api.nvim_win_close(win, true)
+      vim.api.nvim_set_current_win(curr_win)
 
-    -- exit completion mode
-    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Plug>BlinkCmpDotRepeatHack', true, true, true), 'in', false)
+      -- exit completion mode
+      vim.api.nvim_feedkeys(
+        vim.api.nvim_replace_termcodes('<Plug>BlinkCmpDotRepeatHack', true, true, true),
+        'in',
+        false
+      )
+    end)
   end)
 end
 

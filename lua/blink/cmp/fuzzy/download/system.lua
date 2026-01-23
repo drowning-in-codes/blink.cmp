@@ -15,6 +15,9 @@ system.triples = {
     arm = function(libc) return 'aarch64-unknown-linux-' .. libc end,
     x64 = function(libc) return 'x86_64-unknown-linux-' .. libc end,
   },
+  freebsd = {
+    x64 = 'x86_64-unknown-freebsd',
+  },
 }
 
 --- Gets the operating system and architecture of the current system
@@ -22,12 +25,15 @@ system.triples = {
 function system.get_info()
   local os = jit.os:lower()
   if os == 'osx' then os = 'mac' end
+
+  if os == 'bsd' and vim.loop.os_uname().sysname:lower() == 'freebsd' then os = 'freebsd' end
+
   local arch = jit.arch:lower():match('arm') and 'arm' or jit.arch:lower():match('x64') and 'x64' or nil
   return os, arch
 end
 
 --- Gets the system target triple from `cc -dumpmachine`
---- I.e. 'gnu' | 'musl'
+--- E.g. 'gnu' | 'musl'
 --- @return blink.cmp.Task
 function system.get_linux_libc()
   return async
@@ -42,12 +48,13 @@ function system.get_linux_libc()
 
       -- strip whitespace
       local stdout = process.stdout:gsub('%s+', '')
-      return vim.fn.split(stdout, '-')[4]
+      local parts = vim.fn.split(stdout, '-')
+      return parts[#parts]
     end)
     :catch(function() end)
     -- Fall back to checking for alpine
     :map(function(libc)
-      if libc ~= nil then return libc end
+      if libc ~= nil and vim.tbl_contains({ 'gnu', 'musl' }, libc) then return libc end
 
       return async.task.new(function(resolve)
         vim.uv.fs_stat('/etc/alpine-release', function(err, is_alpine)
@@ -73,7 +80,7 @@ function system.get_linux_libc_sync()
 end
 
 --- Gets the system triple for the current system
---- I.e. `x86_64-unknown-linux-gnu` or `aarch64-apple-darwin`
+--- E.g. `x86_64-unknown-linux-gnu` or `aarch64-apple-darwin`
 --- @return blink.cmp.Task
 function system.get_triple()
   return async.task.new(function(resolve, reject)
@@ -81,6 +88,7 @@ function system.get_triple()
 
     local os, arch = system.get_info()
     local triples = system.triples[os]
+    if triples == nil then return end
 
     if os == 'linux' then
       if vim.fn.has('android') == 1 then return resolve(triples.android) end
@@ -103,6 +111,7 @@ function system.get_triple_sync()
 
   local os, arch = system.get_info()
   local triples = system.triples[os]
+  if triples == nil then return end
 
   if os == 'linux' then
     if vim.fn.has('android') == 1 then return triples.android end

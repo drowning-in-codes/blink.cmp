@@ -7,27 +7,30 @@
 ---     local node = vim.treesitter.get_node()
 ---     if vim.bo.filetype == 'lua' then
 ---       return { 'lsp', 'path' }
----     elseif node and vim.tbl_contains({ 'comment', 'line_comment', 'block_comment' }), node:type())
+---     elseif node and vim.tbl_contains({ 'comment', 'line_comment', 'block_comment' }, node:type()) then
 ---       return { 'buffer' }
 ---     else
 ---       return { 'lsp', 'path', 'snippets', 'buffer' }
 ---     end
 ---   end
 --- ```
---- @field default string[] | fun(): string[]
---- @field per_filetype table<string, string[] | fun(): string[]>
+--- @field default blink.cmp.SourceList
+--- @field per_filetype table<string, blink.cmp.SourceListPerFiletype>
 ---
 --- @field transform_items fun(ctx: blink.cmp.Context, items: blink.cmp.CompletionItem[]): blink.cmp.CompletionItem[] Function to transform the items before they're returned
 --- @field min_keyword_length number | fun(ctx: blink.cmp.Context): number Minimum number of characters in the keyword to trigger
 ---
 --- @field providers table<string, blink.cmp.SourceProviderConfig>
 
+--- @alias blink.cmp.SourceList string[] | fun(): string[]
+--- @alias blink.cmp.SourceListPerFiletype { inherit_defaults?: boolean, [number]: string } | fun(): ({ inherit_defaults?: boolean, [number]: string })
+
 --- @class blink.cmp.SourceProviderConfig
---- @field name string
 --- @field module string
+--- @field name? string
 --- @field enabled? boolean | fun(): boolean Whether or not to enable the provider
 --- @field opts? table
---- @field async? boolean | fun(ctx: blink.cmp.Context): boolean Whether blink should wait for the source to return before showing the completions
+--- @field async? boolean | fun(ctx: blink.cmp.Context): boolean Whether we should show the completions before this provider returns, without waiting for it
 --- @field timeout_ms? number | fun(ctx: blink.cmp.Context): number How long to wait for the provider to return before showing completions and treating it as asynchronous
 --- @field transform_items? fun(ctx: blink.cmp.Context, items: blink.cmp.CompletionItem[]): blink.cmp.CompletionItem[] Function to transform the items before they're returned
 --- @field should_show_items? boolean | fun(ctx: blink.cmp.Context, items: blink.cmp.CompletionItem[]): boolean Whether or not to show the items
@@ -53,36 +56,24 @@ local sources = {
         name = 'LSP',
         module = 'blink.cmp.sources.lsp',
         fallbacks = { 'buffer' },
-        transform_items = function(_, items)
-          -- filter out text items, since we have the buffer source
-          return vim.tbl_filter(
-            function(item) return item.kind ~= require('blink.cmp.types').CompletionItemKind.Text end,
-            items
-          )
-        end,
       },
       path = {
-        name = 'Path',
         module = 'blink.cmp.sources.path',
         score_offset = 3,
         fallbacks = { 'buffer' },
       },
       snippets = {
-        name = 'Snippets',
         module = 'blink.cmp.sources.snippets',
-        score_offset = -3,
+        score_offset = -1, -- receives a -3 from top level snippets.score_offset
       },
       buffer = {
-        name = 'Buffer',
         module = 'blink.cmp.sources.buffer',
         score_offset = -3,
       },
       cmdline = {
-        name = 'cmdline',
         module = 'blink.cmp.sources.cmdline',
       },
       omni = {
-        name = 'Omni',
         module = 'blink.cmp.sources.complete_func',
         enabled = function() return vim.bo.omnifunc ~= 'v:lua.vim.lsp.omnifunc' end,
         ---@type blink.cmp.CompleteFuncOpts
@@ -90,22 +81,15 @@ local sources = {
           complete_func = function() return vim.bo.omnifunc end,
         },
       },
-      -- NOTE: in future we may want a built-in terminal source. For now
-      -- the infrastructure exists, e.g. so community terminal sources can be
+      -- NOTE: in the future, we may want a built-in terminal source. For now
+      -- the infrastructure exists, so community terminal sources can be
       -- added, but this functionality is not baked into blink.cmp.
-      -- term = {
-      --   name = 'term',
-      --   module = 'blink.cmp.sources.term',
-      -- },
+      -- term = { module = 'blink.cmp.sources.term' },
     },
   },
 }
 
 function sources.validate(config)
-  assert(
-    config.completion == nil,
-    '`sources.completion.enabled_providers` has been replaced with `sources.default`. !!Note!! Be sure to update `opts_extend` as well if you have it set'
-  )
   assert(config.cmdline == nil, '`sources.cmdline` has been replaced with `cmdline.sources`')
   assert(config.term == nil, '`sources.term` has been replaced with `term.sources`')
   assert(
@@ -134,8 +118,8 @@ function sources.validate_provider(id, provider)
   )
 
   validate('sources.providers.' .. id, {
-    name = { provider.name, 'string' },
     module = { provider.module, 'string' },
+    name = { provider.name, 'string', true },
     enabled = { provider.enabled, { 'boolean', 'function' }, true },
     opts = { provider.opts, 'table', true },
     async = { provider.async, { 'boolean', 'function' }, true },
