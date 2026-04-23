@@ -3,19 +3,16 @@ local health = {}
 function health.report_system()
   vim.health.start('System')
 
-  local required_executables = { 'curl', 'git' }
-  for _, executable in ipairs(required_executables) do
-    if vim.fn.executable(executable) == 0 then
-      vim.health.error(executable .. ' is not installed')
-    else
-      vim.health.ok(executable .. ' is installed')
-    end
+  if vim.fn.executable('git') == 0 then
+    vim.health.error('git is not installed')
+  else
+    vim.health.ok('git is installed')
   end
 
   -- check if os is supported
   local platform = require('blink.lib.native').platform()
   if platform.triple then
-    vim.health.ok('Your system is supported by pre-built binaries (' .. system_triple .. ')')
+    vim.health.ok('Your system is supported by pre-built binaries (' .. platform.triple .. ')')
   else
     vim.health.warn(
       'Your system ('
