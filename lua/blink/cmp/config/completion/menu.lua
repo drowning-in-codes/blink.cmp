@@ -19,7 +19,7 @@ return {
   enabled = { true, 'boolean' },
   min_width = { 15, 'number' },
   max_height = { 10, 'number' },
-  border = { nil, { 'table', 'nil' } },
+  border = { nil, { 'table', 'string', 'nil' } },
   winblend = { 0, 'number' },
   winhighlight = {
     'Normal:BlinkCmpMenu,FloatBorder:BlinkCmpMenuBorder,CursorLine:BlinkCmpMenuSelection,Search:None',
