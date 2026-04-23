@@ -5,24 +5,6 @@ local reg_modifier = vim.regex([[\v(\s+|'|")((\%|#\d*|\<\w+\>)(:(h|p|t|r|e|s|S|g
 
 local utils = {}
 
---- Safely parses a command-line string.
---- Skips parsing for known incomplete expressions that cause nvim_parse_cmd() to emit errors even inside pcall(). Not exhaustive.
---- @param line string
---- @return table? parsed_cmd
-local function safe_parse_cmd(line)
-  if not line or line == '' then return nil end
-
-  -- FIXME: Guard against the most common incomplete expressions that cause errors
-  -- This are very cheap heuristics to work around neovim/neovim/issues/24220. Remove when fixed.
-  local _, quotes = line:gsub('[\'"]', '')
-  if quotes % 2 == 1 then return nil end
-  if line:match('[/?&]%s*$') then return nil end
-  if line:match('%([^)]*$') or line:match('{[^}]*$') then return nil end
-
-  local ok, parsed = pcall(nvim.parse_cmd, line, {})
-  return ok and parsed or nil
-end
-
 --- Check if we are in cmdline or cmdwin, optionally for specific types.
 --- @param types? string[] Optional list of command types to check. If nil or empty, only checks for context.
 --- @return boolean
@@ -44,13 +26,11 @@ function utils.in_ex_search_commands()
   local mode = nvim.get_mode().mode
   local line = mode == 'c' and vim.fn.getcmdline() or nvim.get_current_line()
 
-  local parsed = safe_parse_cmd(line)
-  if not parsed then return false end
+  local ok, parsed = pcall(vim.api.nvim_parse_cmd, line, {})
+  if not ok or parsed.cmd == '' then return false end
+  local has_args = parsed.args and #parsed.args > 0 or false
 
-  local cmd = parsed.cmd or ''
-  if not constants.ex_search_commands[cmd] then return false end
-
-  return parsed.args ~= nil and #parsed.args > 0
+  return constants.ex_search_commands[parsed.cmd] and has_args
 end
 
 --- Get the current completion type.
