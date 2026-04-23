@@ -13,17 +13,15 @@ function health.report_system()
   end
 
   -- check if os is supported
-  local download_system = require('blink.download.system')
-  local system_triple = download_system.get_triple_sync()
-  if system_triple then
+  local platform = require('blink.lib.native').platform()
+  if platform.triple then
     vim.health.ok('Your system is supported by pre-built binaries (' .. system_triple .. ')')
   else
-    local os, arch = download_system.get_info()
     vim.health.warn(
       'Your system ('
-        .. os
+        .. platform.os
         .. '/'
-        .. arch
+        .. platform.arch
         .. ') is not supported by pre-built binaries. You must run cargo build --release via your package manager. See the README for more info.'
     )
   end
