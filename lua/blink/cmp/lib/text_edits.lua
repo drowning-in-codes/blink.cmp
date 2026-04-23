@@ -26,17 +26,7 @@ function text_edits.apply(text_edit, additional_text_edits)
     table.insert(all_edits, text_edit)
 
     local cur_bufnr = nvim.get_current_buf()
-    local buf = vim.bo[cur_bufnr]
-    local prev_buflisted = buf.buflisted
     vim.lsp.util.apply_text_edits(all_edits, cur_bufnr, 'utf-8')
-
-    -- FIXME: vim.lsp.util.apply_text_edits unconditionally forces buflisted=true.
-    -- We try to restore the original state for unlisted ones, but this can cause side effects (window close/resize).
-    -- Current workaround: Skip restoring for known problematic filetypes.
-    -- Side effect: Those buffers may appear in the bufferline unexpectedly.
-    -- TODO: Remove once https://github.com/neovim/neovim/issues/37832 fixed
-    local skip_fts = { gitcommit = true, ['dap-repl'] = true }
-    if not prev_buflisted and not skip_fts[buf.filetype] then buf.buflisted = false end
   end
 
   if mode == 'cmdline' then
