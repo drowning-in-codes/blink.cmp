@@ -231,7 +231,7 @@ function cmp.show(opts)
 end
 
 -- Show the completion window and select the first item
---- @params opts? { providers?: string[], callback?: fun() }
+--- @param opts? blink.cmp.ShowOpts
 --- @return boolean
 function cmp.show_and_insert(opts)
   opts = opts or {}
