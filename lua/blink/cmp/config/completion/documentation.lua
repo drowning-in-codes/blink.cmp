@@ -48,7 +48,7 @@ return {
     max_height = { 20, 'number' },
     desired_min_width = { 50, 'number' },
     desired_min_height = { 10, 'number' },
-    border = { nil, { 'table', 'nil' } },
+    border = { nil, { 'table', 'string', 'nil' } },
     winblend = { 0, 'number' },
     winhighlight = { 'Normal:BlinkCmpDoc,FloatBorder:BlinkCmpDocBorder,EndOfBuffer:BlinkCmpDoc', 'string' },
     scrollbar = { true, 'boolean' },

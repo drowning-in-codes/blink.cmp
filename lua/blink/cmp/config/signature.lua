@@ -43,7 +43,7 @@ return {
     min_width = { 1, 'number' },
     max_width = { 100, 'number' },
     max_height = { 10, 'number' },
-    border = { nil, { 'table', 'nil' } },
+    border = { nil, { 'table', 'string', 'nil' } },
     winblend = { 0, 'number' },
     winhighlight = { 'Normal:BlinkCmpSignatureHelp,FloatBorder:BlinkCmpSignatureHelpBorder', 'string' },
     scrollbar = { true, 'boolean' },
