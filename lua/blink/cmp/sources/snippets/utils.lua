@@ -1,3 +1,5 @@
+local logger = require('blink.cmp.logger')
+
 local utils = {
   parse_cache = {},
 }
@@ -8,10 +10,9 @@ local utils = {
 function utils.parse_json_with_error_msg(path, json)
   local ok, parsed = pcall(vim.json.decode, json)
   if not ok then
-    vim.notify(
-      'Failed to parse json file "' .. path .. '" for blink.cmp snippets. Error: ' .. parsed,
+    logger:notify(
       vim.log.levels.ERROR,
-      { title = 'blink.cmp' }
+      'Failed to parse json file "' .. path .. '" for blink.cmp snippets. Error: ' .. parsed
     )
     return {}
   end

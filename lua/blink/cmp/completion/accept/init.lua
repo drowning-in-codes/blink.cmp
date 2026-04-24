@@ -1,4 +1,5 @@
 local config = require('blink.cmp.config').completion.accept
+local logger = require('blink.cmp.logger')
 local text_edits_lib = require('blink.cmp.lib.text_edits')
 local brackets_lib = require('blink.cmp.completion.brackets')
 
@@ -119,7 +120,7 @@ local function accept(ctx, item, callback)
       require('blink.cmp.signature.trigger').show_if_on_trigger_character()
       callback()
     end)
-    :catch(function(err) vim.notify(err, vim.log.levels.ERROR, { title = 'blink.cmp' }) end)
+    :catch(function(err) logger:notify(vim.log.levels.ERROR, err) end)
 end
 
 return accept

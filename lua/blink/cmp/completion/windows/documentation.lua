@@ -15,6 +15,7 @@ local nvim = require('blink.lib.nvim')
 local config = require('blink.cmp.config').completion.documentation
 local win_config = config.window
 
+local logger = require('blink.cmp.logger')
 local sources = require('blink.cmp.sources.lib')
 local menu = require('blink.cmp.completion.windows.menu')
 
@@ -109,7 +110,7 @@ function docs.show_item(context, item)
         docs.update_position()
       end
     end)
-    :catch(function(err) vim.notify(err, vim.log.levels.ERROR, { title = 'blink.cmp' }) end)
+    :catch(function(err) logger:notify(vim.log.levels.ERROR, err) end)
 end
 
 -- TODO: compensate for wrapped lines

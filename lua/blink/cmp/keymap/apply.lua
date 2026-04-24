@@ -1,7 +1,7 @@
 local apply = {}
 
 local cmp = require('blink.cmp')
-local config = require('blink.cmp.config')
+local logger = require('blink.cmp.logger')
 local fallback = require('blink.cmp.keymap.fallback')
 local utils = require('blink.cmp.keymap.utils')
 
@@ -60,10 +60,8 @@ local function apply_callback(mode, key, commands, callback)
       elseif callback == nil or callback(command) then
         local fn = cmp[command]
         if type(fn) ~= 'function' then
-          vim.schedule(function()
-            local message = string.format('blink.cmp: unknown command "%s"', tostring(command))
-            vim.notify(message, vim.log.levels.WARN)
-          end)
+          local message = string.format('blink.cmp: unknown command "%s"', tostring(command))
+          logger:notify(vim.log.levels.WARN, message)
         else
           if fn() then return end
         end

@@ -5,6 +5,7 @@
 local lib = require('blink.lib')
 local task = require('blink.lib.task')
 local nvim = require('blink.lib.nvim')
+local logger = require('blink.cmp.logger')
 local constants = require('blink.cmp.sources.cmdline.constants')
 local cmdline_utils = require('blink.cmp.sources.cmdline.utils')
 local path_lib = require('blink.cmp.sources.path.lib')
@@ -324,7 +325,7 @@ function cmdline:get_completions(context, callback)
     :catch(function(err)
       -- TODO: is there a way to avoid throwing this error?
       if type(err) ~= 'string' or not err:match('Vim:E433: No tags file') then
-        vim.notify('Error while fetching completions: ' .. err, vim.log.levels.ERROR, { title = 'blink.cmp' })
+        logger:notify(vim.log.levels.ERROR, 'Error while fetching completions: ' .. err)
       end
       ---@diagnostic disable-next-line: missing-return
       callback({ is_incomplete_backward = false, is_incomplete_forward = false, items = {} })
