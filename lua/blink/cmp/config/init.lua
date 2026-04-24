@@ -11,7 +11,7 @@
 --- @field term table TODO:
 
 --- @type blink.cmp.ConfigStrict
-local config = require('blink.lib.config').new('blink_cmp', {
+local config = require('blink.lib.config').new({
   enabled = { true, { 'boolean', 'function' } },
   keymap = require('blink.cmp.config.keymap'),
   completion = require('blink.cmp.config.completion'),
@@ -30,7 +30,7 @@ local config = require('blink.lib.config').new('blink_cmp', {
     enabled = { true, 'boolean' },
     keymap = { { preset = 'default' }, 'table' },
   },
-}, { validate = false })
+}, { global_key = 'blink_cmp', validate = false })
 
 -- cmdline override
 config({
