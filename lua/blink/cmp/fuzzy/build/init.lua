@@ -38,7 +38,7 @@ end
 --- Builds the rust binary from source
 --- @return blink.lib.Task
 function build.build()
-  logger.notify({ { 'Building fuzzy matching library from source...' } }, vim.log.levels.INFO)
+  logger:notify(vim.log.levels.INFO, 'Building fuzzy matching library from source...')
 
   local log = log_file.create()
   log.write('Working Directory: ' .. get_project_root())
@@ -53,18 +53,18 @@ function build.build()
     })
     :map(
       function()
-        logger.notify({
+        logger:notify(vim.log.levels.INFO, {
           { 'Successfully built fuzzy matching library. ' },
           { ':BlinkCmp build-log', 'DiagnosticInfo' },
-        }, vim.log.levels.INFO)
+        })
       end
     )
     :catch(
       function()
-        logger.notify({
+        logger:notify(vim.log.levels.ERROR, {
           { 'Failed to build fuzzy matching library! ', 'DiagnosticError' },
           { ':BlinkCmp build-log', 'DiagnosticInfo' },
-        }, vim.log.levels.ERROR)
+        })
       end
     )
     :map(function() log.close() end)
