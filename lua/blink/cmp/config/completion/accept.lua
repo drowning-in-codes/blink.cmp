@@ -31,7 +31,7 @@ return {
   auto_brackets = {
     enabled = { true, 'boolean' },
     default_brackets = { { '(', ')' }, config.types.list('string') },
-    override_brackets_for_filetypes = { {}, config.types.map('string', config.types.list('string')) },
+    override_brackets_for_filetypes = { {}, config.types.map('string', { config.types.list('string'), 'function' }) },
     force_allow_filetypes = { {}, config.types.list('string') },
     blocked_filetypes = { {}, config.types.list('string') },
 
