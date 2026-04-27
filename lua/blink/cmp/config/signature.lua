@@ -49,7 +49,7 @@ return {
     scrollbar = { true, 'boolean' },
     direction_priority = {
       { 'n', 's' },
-      config.types.list(config.types.enum({ 'n', 's' })),
+      { config.types.list(config.types.enum({ 'n', 's' })), 'function' },
     },
     -- TODO: remove
     treesitter_highlighting = { true, 'boolean' },
