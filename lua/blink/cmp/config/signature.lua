@@ -36,6 +36,8 @@ return {
     blocked_trigger_characters = { {}, config.types.list('string') },
     blocked_retrigger_characters = { {}, config.types.list('string') },
     show_on_trigger_character = { true, 'boolean' },
+    show_on_insert = { false, 'boolean' },
+    show_on_insert_on_trigger_character = { true, 'boolean' },
     show_on_accept = { false, 'boolean' },
     show_on_accept_on_trigger_character = { true, 'boolean' },
   },
