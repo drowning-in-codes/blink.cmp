@@ -106,7 +106,7 @@ function cmp.build(opts)
       local repo_root = lib.native.git_repo_root(debug.getinfo(1, 'S').source:sub(2))
       if repo_root == nil then error('Missing git repo root, did you install via a package manager?') end
 
-      return lib.native.exec_async(repo_root, { 'cargo', 'build', '--release' }, logger, callback):map(function(system)
+      return lib.native.exec_async(repo_root, { 'cargo', 'build', '--release' }, logger):map(function(_system)
         -- TODO: move non-lib prefix for windows msvc
         lib.native.mv(
           repo_root .. '/target/release/libblink_cmp_fuzzy' .. platform.lib_extension,
