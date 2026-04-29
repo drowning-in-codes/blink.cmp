@@ -440,8 +440,7 @@ function cmp.is_signature_visible() return require('blink.cmp.signature.window')
 --- Show the signature help window
 --- @return boolean
 function cmp.show_signature()
-  local config = require('blink.cmp.config').signature
-  if not config.enabled or cmp.is_signature_visible() then return false end
+  if not config.signature.enabled or cmp.is_signature_visible() then return false end
 
   require('blink.cmp.signature.trigger').show({ force = true })
   return true
@@ -450,8 +449,7 @@ end
 --- Hide the signature help window
 --- @return boolean
 function cmp.hide_signature()
-  local config = require('blink.cmp.config').signature
-  if not config.enabled or not cmp.is_signature_visible() then return false end
+  if not config.signature.enabled or not cmp.is_signature_visible() then return false end
 
   require('blink.cmp.signature.trigger').hide()
   return true
@@ -480,12 +478,12 @@ end
 --- Check if a snippet is active, optionally filtering by direction
 --- @param filter? { direction?: number }
 --- @return boolean
-function cmp.snippet_active(filter) return require('blink.cmp.config').snippets.active(filter) end
+function cmp.snippet_active(filter) return config.snippets.active(filter) end
 
 --- Move the cursor forward to the next snippet placeholder
 --- @return boolean
 function cmp.snippet_forward()
-  local snippets = require('blink.cmp.config').snippets
+  local snippets = config.snippets
   if not snippets.active({ direction = 1 }) then return false end
 
   return snippets.jump(1)
@@ -494,7 +492,7 @@ end
 --- Move the cursor backward to the previous snippet placeholder
 --- @return boolean
 function cmp.snippet_backward()
-  local snippets = require('blink.cmp.config').snippets
+  local snippets = config.snippets
   if not snippets.active({ direction = -1 }) then return false end
 
   return snippets.jump(-1)
@@ -520,7 +518,6 @@ end
 --- @param source_id string
 --- @param source_config blink.cmp.SourceProviderConfig
 function cmp.add_source_provider(source_id, source_config)
-  local config = require('blink.cmp.config')
   assert(config.sources.providers[source_id] == nil, 'Provider with id ' .. source_id .. ' already exists')
   config.sources.providers[source_id] = source_config
 end
