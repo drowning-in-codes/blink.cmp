@@ -161,70 +161,61 @@
 --- @field preset? blink.cmp.KeymapPreset
 --- @field [string] blink.cmp.KeymapCommand[] | false Table of keys => commands[] or false to disable
 
---- @param config blink.cmp.KeymapConfig
---- @param is_mode boolean? Is mode-specific keymap config
-function validate(config, is_mode)
-  assert(config.cmdline == nil, '`keymap.cmdline` has been replaced with `cmdline.keymap`')
-  assert(config.term == nil, '`keymap.term` has been replaced with `term.keymap`')
+local keymap = {}
 
-  local commands = {
-    'fallback',
-    'fallback_to_mappings',
-    'show',
-    'show_and_insert',
-    'show_and_insert_or_accept_single',
-    'hide',
-    'cancel',
-    'accept',
-    'accept_and_enter',
-    'select_and_accept',
-    'select_accept_and_enter',
-    'select_prev',
-    'select_next',
-    'insert_prev',
-    'insert_next',
-    'show_documentation',
-    'hide_documentation',
-    'scroll_documentation_up',
-    'scroll_documentation_down',
-    'show_signature',
-    'hide_signature',
-    'scroll_signature_up',
-    'scroll_signature_down',
-    'snippet_forward',
-    'snippet_backward',
-  }
-  local presets = { 'default', 'cmdline', 'super-tab', 'enter', 'none' }
-  if is_mode then table.insert(presets, 'inherit') end
+local config = require('blink.lib.config')
 
-  local validation_schema = {}
-  for key, value in pairs(config) do
-    -- preset
-    if key == 'preset' then
-      validation_schema[key] = {
-        value,
-        function(preset) return vim.tbl_contains(presets, preset) end,
-        'one of: ' .. table.concat(presets, ', '),
-      }
+local presets = { 'default', 'cmdline', 'super-tab', 'enter', 'none', 'inherit' }
+local commands = {
+  'fallback',
+  'fallback_to_mappings',
+  'show',
+  'show_and_insert',
+  'show_and_insert_or_accept_single',
+  'hide',
+  'cancel',
+  'accept',
+  'accept_and_enter',
+  'select_and_accept',
+  'select_accept_and_enter',
+  'select_prev',
+  'select_next',
+  'insert_prev',
+  'insert_next',
+  'show_documentation',
+  'hide_documentation',
+  'scroll_documentation_up',
+  'scroll_documentation_down',
+  'show_signature',
+  'hide_signature',
+  'scroll_signature_up',
+  'scroll_signature_down',
+  'snippet_forward',
+  'snippet_backward',
+}
 
-    -- key
-    else
-      validation_schema[key] = {
-        value,
-        function(key_commands)
-          if key_commands == false then return true end
-          if type(key_commands) ~= 'table' then return false end
-          for _, command in ipairs(key_commands) do
-            if type(command) ~= 'function' and not vim.tbl_contains(commands, command) then return false end
-          end
-          return true
-        end,
-        'commands must be one of: ' .. table.concat(commands, ', ') .. ' or false to disable',
-      }
-    end
+local command_or_function = config.types.validator('string | function', function(val)
+  if type(val) == 'string' and not vim.tbl_contains(commands, val) then
+    return false, ('unknown command `%s`'):format(val)
   end
-  require('blink.cmp.config.utils')._validate(validation_schema)
+  return type(val) == 'string' or type(val) == 'function'
+end)
+
+local keycode = config.types.validator('keycode', function(val)
+  if type(val) ~= 'string' or val == '' then return false end
+  local rest = val:gsub('<[^<>]+>', '')
+  if rest:match('[<>]') then return false end
+  return true
+end)
+
+local actions = config.types.union(config.types.enum({ false }), config.types.list(command_or_function))
+
+---@param default_preset blink.cmp.KeymapPreset
+function keymap.get(default_preset)
+  return {
+    { preset = default_preset },
+    config.types.table({ preset = { 'default', config.types.enum(presets) } }, keycode, actions),
+  }
 end
 
--- TODO:
-return { { preset = 'default' }, 'table' }
+return keymap
