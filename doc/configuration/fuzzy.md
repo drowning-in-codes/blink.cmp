@@ -59,9 +59,7 @@ You may instead install the prebuilt binaries manually by downloading the approp
 
 ### Build from source (recommended for `main`)
 
-When on `main`, it's highly recommended to build from source via `cargo build --release` (via `build = '...'` on `lazy.nvim` for example).
-
-You may also build with nix via `nix run .#build-plugin`.
+When on `main`, it's highly recommended to build from source via `require('blink.cmp').build():wait(60000)` (via `build = function() ... end` on `lazy.nvim` for example).
 
 ## Configuration
 
