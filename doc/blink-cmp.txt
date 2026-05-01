@@ -1,5 +1,4 @@
-*blink-cmp.txt*
-                                  For NVIM v0.10.0    Last change: 2026 May 01
+*blink-cmp.txt*            For NVIM v0.10.0           Last change: 2026 May 01
 
 ==============================================================================
 Table of Contents                                *blink-cmp-table-of-contents*
@@ -220,8 +219,8 @@ DISABLE COMPLETION IN ONLY SHELL COMMAND MODE ~
 
 When inside of git bash or WSL on windows, you may experience a hang with shell
 commands. The following disables cmdline completions only when running shell
-commands (e.g. `[':!' , ':%!']`), but still allows completion in other command
-modes (e.g. `[':' , ':help', '/' , '?']`).
+commands (e.g. `[':!' , ':%!']`), but still allows completion in other command
+modes (e.g. `[':' , ':help', '/' , '?']`).
 
 >lua
     sources = {
@@ -541,7 +540,7 @@ See the full docs <./configuration/sources.md>
 BUFFER COMPLETION FROM ALL OPEN BUFFERS ~
 
 The default behavior is to only show completions from **visible** "normal"
-buffers (e.g. it wouldn’t include neo-tree). This will instead show
+buffers (e.g. it wouldn’t include neo-tree). This will instead show
 completions from all buffers, even if they’re not visible on screen. Note
 that the performance impact of this has not been tested.
 
@@ -1269,7 +1268,7 @@ true` will fill the remaining space, effectively making subsequent components
 right aligned, with respect to their column.
 
 If there are multiple components with `width.fill = true` then the space to be
-filled up is distributed equally between them. This can be used to e.g. center
+filled up is distributed equally between them. This can be used to e.g. center
 align a component.
 
 Columns effectively allow you to vertically align a set of components. Each
@@ -1291,13 +1290,13 @@ For a setup similar to nvim-cmp, use the following config:
 AVAILABLE COMPONENTS
 
 - `kind_icon`: Shows the icon for the kind of the item
-- `kind`: Shows the kind of the item as text (e.g. `Function`)
-- `label`: Shows the label of the item as well as the `label_detail` (e.g. `into(as Into)` where `into` is the label and `(as Into)` is the label detail)
+- `kind`: Shows the kind of the item as text (e.g. `Function`)
+- `label`: Shows the label of the item as well as the `label_detail` (e.g. `into(as Into)` where `into` is the label and `(as Into)` is the label detail)
     - If the `label_detail` is missing from your items, ensure you’ve setup LSP capabilities <../installation> and that your LSP supports the feature
-- `label_description`: Shows the label description of the item (e.g. `date-fns/formatDistance`, the module that the item will be auto-imported from)
+- `label_description`: Shows the label description of the item (e.g. `date-fns/formatDistance`, the module that the item will be auto-imported from)
     - If the `label_description` is missing from your items, ensure you’ve setup LSP capabilities <../installation> and that your LSP supports the feature
-- `source_name`: Shows the name of the source that provided the item, from the `sources.providers.*.name` (e.g. `LSP`)
-- `source_id`: Shows the id of the source that provided the item, from the `sources.providers[id]` (e.g. `lsp`)
+- `source_name`: Shows the name of the source that provided the item, from the `sources.providers.*.name` (e.g. `LSP`)
+- `source_id`: Shows the id of the source that provided the item, from the `sources.providers[id]` (e.g. `lsp`)
 
 
 CURSORLINE
@@ -3559,8 +3558,8 @@ ARCHITECTURE                              *blink-cmp-development-architecture*
 
 The plugin use a 4 stage pipeline: trigger -> sources -> fuzzy -> render 1.
 **Trigger:** Controls when to request completion items from the sources and
-provides a context downstream with the current query (e.g. `hello.wo|`, the
-query would be `wo`) and the treesitter object under the cursor (e.g. for
+provides a context downstream with the current query (e.g. `hello.wo|`, the
+query would be `wo`) and the treesitter object under the cursor (e.g. for
 intelligently enabling/disabling sources). It respects trigger characters
 passed by the LSP (or any other source) and includes it in the context for
 sending to the LSP. 2. **Sources:** Provides a common interface for and merges
