@@ -1,5 +1,5 @@
 *blink-cmp.txt*
-                                For NVIM v0.10.0    Last change: 2026 April 28
+                                  For NVIM v0.10.0    Last change: 2026 May 01
 
 ==============================================================================
 Table of Contents                                *blink-cmp-table-of-contents*
@@ -1454,10 +1454,9 @@ linux, you very likely want `-gnu`.
 
 BUILD FROM SOURCE (RECOMMENDED FOR MAIN)
 
-When on `main`, it’s highly recommended to build from source via `cargo build
---release` (via `build = '...'` on `lazy.nvim` for example).
-
-You may also build with nix via `nix run .#build-plugin`.
+When on `main`, it’s highly recommended to build from source via
+`require('blink.cmp').build():wait(60000)` (via `build = function() ... end` on
+`lazy.nvim` for example).
 
 
 CONFIGURATION ~
