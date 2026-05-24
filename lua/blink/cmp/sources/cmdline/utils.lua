@@ -215,4 +215,18 @@ function utils.call_vlua(func_str, prefix, line, col)
   return call_ok, result
 end
 
+---@param error string
+---@param codes string[]
+---@return boolean
+function utils.is_expected_vim_error(error, codes)
+  local err_code = error:match('^Vim:E(%d+):')
+  if not err_code then return false end
+
+  for _, code in ipairs(codes) do
+    if err_code == code then return true end
+  end
+
+  return false
+end
+
 return utils

@@ -323,8 +323,8 @@ function cmdline:get_completions(context, callback)
       })
     end)
     :catch(function(err)
-      -- TODO: is there a way to avoid throwing this error?
-      if type(err) ~= 'string' or not err:match('Vim:E433: No tags file') then
+      -- TODO: is there a way to avoid throwing these errors?
+      if type(err) ~= 'string' or not utils.is_expected_vim_error(err, { '220', '433' }) then
         logger:notify(vim.log.levels.ERROR, 'Error while fetching completions: ' .. err)
       end
       ---@diagnostic disable-next-line: missing-return
