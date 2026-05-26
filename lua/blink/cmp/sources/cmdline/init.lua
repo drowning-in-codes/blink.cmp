@@ -7,7 +7,7 @@ local task = require('blink.lib.task')
 local nvim = require('blink.lib.nvim')
 local logger = require('blink.cmp.logger')
 local constants = require('blink.cmp.sources.cmdline.constants')
-local cmdline_utils = require('blink.cmp.sources.cmdline.utils')
+local utils = require('blink.cmp.sources.cmdline.utils')
 local path_lib = require('blink.cmp.sources.path.lib')
 
 --- @class blink.cmp.Source
@@ -27,8 +27,7 @@ end
 
 ---@return boolean
 function cmdline:enabled()
-  return vim.bo.ft == 'vim'
-    or (cmdline_utils.is_command_line({ ':', '@' }) and not cmdline_utils.in_ex_search_commands())
+  return vim.bo.ft == 'vim' or (utils.is_command_line({ ':', '@' }) and not utils.in_ex_search_commands())
 end
 
 ---@return table
@@ -38,19 +37,19 @@ function cmdline:get_trigger_characters() return { ' ', '.', '#', '&', '-', '=',
 ---@param callback fun(result?: blink.cmp.CompletionResponse)
 ---@return fun()
 function cmdline:get_completions(context, callback)
-  local completion_type = cmdline_utils.get_completion_type(context.mode)
+  local completion_type = utils.get_completion_type(context.mode)
 
-  local is_path_completion = cmdline_utils.is_path_completion(completion_type, context.line)
+  local is_path_completion = utils.is_path_completion(completion_type, context.line)
   local is_buffer_completion = vim.tbl_contains(constants.completion_types.buffer, completion_type)
-  local is_filename_modifier_completion = cmdline_utils.contains_filename_modifiers(context.line, completion_type)
-  local is_wildcard_completion = cmdline_utils.contains_wildcard(context.line)
+  local is_filename_modifier_completion = utils.contains_filename_modifiers(context.line, completion_type)
+  local is_wildcard_completion = utils.contains_wildcard(context.line)
 
   local should_split_path = (is_path_completion or is_buffer_completion)
     and not is_filename_modifier_completion
     and not is_wildcard_completion
-  local context_line, arguments = cmdline_utils.smart_split(context.line, should_split_path)
+  local context_line, arguments = utils.smart_split(context.line, should_split_path)
   local before_cursor = context_line:sub(1, context.cursor[2])
-  local _, args_before_cursor = cmdline_utils.smart_split(before_cursor, should_split_path)
+  local _, args_before_cursor = utils.smart_split(before_cursor, should_split_path)
   local arg_number = #args_before_cursor
 
   local leading_spaces = context.line:match('^(%s*)') -- leading spaces in the original query
@@ -66,7 +65,7 @@ function cmdline:get_completions(context, callback)
   local start_pos = #text_before_argument + #leading_spaces
   -- Skip leading command range when computing start_pos
   if arg_number == 1 and completion_type == 'command' then
-    local prefix = cmdline_utils.longest_match(current_arg, {
+    local prefix = utils.longest_match(current_arg, {
       "^%s*'<%s*,%s*'>%s*", -- Visual range, e.g. '<,>'
       '^%s*%d+%s*,%s*%d+%s*', -- Numeric range, e.g. 3,5
       '^%s*[%p]+%s*', -- One or more punctuation characters
@@ -90,7 +89,7 @@ function cmdline:get_completions(context, callback)
       local completions = {}
 
       -- Input mode (vim.fn.input())
-      if cmdline_utils.is_command_line({ '@' }) then
+      if utils.is_command_line({ '@' }) then
         local completion_args = vim.split(completion_type, ',', { plain = true })
         local custom_type = completion_args[1]
         local completion_func = completion_args[2]
@@ -109,7 +108,7 @@ function cmdline:get_completions(context, callback)
           -- Handle v:lua functions (:h v:lua-call)
           if vim.startswith(custom_func, 'v:lua') then
             success, fn_completions =
-              cmdline_utils.call_vlua(completion_func, current_arg_prefix, context.get_line(), context.cursor[2] + 1)
+              utils.call_vlua(completion_func, current_arg_prefix, context.get_line(), context.cursor[2] + 1)
           else
             -- Regular vimscript/Lua functions
             success, fn_completions =
@@ -137,12 +136,12 @@ function cmdline:get_completions(context, callback)
             -- path completions uniquely expect only the current path
             query = is_path_completion and current_arg_prefix or query
 
-            completions = cmdline_utils.get_completions(query, compl_type, completion_type)
+            completions = utils.get_completions(query, compl_type, completion_type)
             if type(completions) ~= 'table' then completions = {} end
           end
         end
       elseif is_filename_modifier_completion then
-        vim_expr = cmdline_utils.extract_quoted_part(current_arg) or current_arg
+        vim_expr = utils.extract_quoted_part(current_arg) or current_arg
         special_char = vim_expr:sub(-1)
 
         -- Alternate files
@@ -175,7 +174,7 @@ function cmdline:get_completions(context, callback)
       else
         local query = (text_before_argument .. current_arg_prefix):gsub([[\\]], [[\\\\]])
         if query == '=' then query = '= ' end
-        completions = cmdline_utils.get_completions(query, 'cmdline', completion_type)
+        completions = utils.get_completions(query, 'cmdline', completion_type)
       end
 
       return completions
