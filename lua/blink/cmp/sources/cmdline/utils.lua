@@ -34,14 +34,30 @@ function utils.in_ex_search_commands()
 end
 
 --- Get the current completion type.
---- @param mode blink.cmp.Mode
+--- @param context blink.cmp.Context
 --- @return string completion_type The detected completion type, or an empty string if unknown.
-function utils.get_completion_type(mode)
-  if mode == 'cmdline' then return vim.fn.getcmdcompltype() end
-  if mode ~= 'cmdwin' then return '' end
+function utils.get_completion_type(context)
+  local completion_type = ''
 
-  local line = nvim.get_current_line()
-  return vim.fn.getcompletiontype(line)
+  if context.mode == 'cmdline' then
+    completion_type = vim.fn.getcmdcompltype()
+  elseif context.mode ~= 'cmdwin' then
+    completion_type = ''
+  else
+    completion_type = vim.fn.getcompletiontype(context.line)
+  end
+
+  if completion_type == '' then
+    local cmd = context.line:match('^(%a+)%s')
+    if cmd then
+      local find_cmds = { find = true, sfind = true, tabfind = true }
+      -- Returns custom completion type to distinguish :find-family commands
+      -- when 'findfunc' is set, since Neovim returns '' in this case.
+      if find_cmds[cmd] and vim.opt.findfunc ~= '' then return 'findfunc' end
+    end
+  end
+
+  return completion_type
 end
 
 --- @param path string

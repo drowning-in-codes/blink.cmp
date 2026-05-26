@@ -37,7 +37,7 @@ function cmdline:get_trigger_characters() return { ' ', '.', '#', '&', '-', '=',
 ---@param callback fun(result?: blink.cmp.CompletionResponse)
 ---@return fun()
 function cmdline:get_completions(context, callback)
-  local completion_type = utils.get_completion_type(context.mode)
+  local completion_type = utils.get_completion_type(context)
 
   local is_path_completion = utils.is_path_completion(completion_type, context.line)
   local is_buffer_completion = vim.tbl_contains(constants.completion_types.buffer, completion_type)
