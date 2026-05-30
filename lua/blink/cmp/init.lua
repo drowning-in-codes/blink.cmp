@@ -70,14 +70,14 @@ function cmp.setup(opts)
         logger:notify(vim.log.levels.WARN, 'Rust fuzzy matcher not available, falling back to Lua implementation.')
         logger:notify(vim.log.levels.WARN, {
           { 'V2 uses a new build/download system for the native library. Please add ' },
-          { " build = function() require('blink.cmp').build():wait(60000) end ", 'DiagnosticVirtualTextInfo' },
+          { " build = function() require('blink.cmp').build():pwait() end ", 'DiagnosticVirtualTextInfo' },
           { ' to your lazy.nvim config. See ' },
           { ' :h blink-cmp-installation ', 'DiagnosticVirtualTextInfo' },
           { ' for more information.' },
         })
       elseif config.fuzzy.implementation == 'rust' then
         error(
-          'Rust fuzzy matcher not available, did you forget to add build = function() require("blink.cmp").build():wait(60000) end to your lazy.nvim config?'
+          'Rust fuzzy matcher not available, did you forget to add build = function() require("blink.cmp").build():pwait() end to your lazy.nvim config?'
         )
       end
     else
