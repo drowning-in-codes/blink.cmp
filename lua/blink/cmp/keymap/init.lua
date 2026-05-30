@@ -80,8 +80,9 @@ function keymap.get_mappings(keymap_config, mode)
 
   -- Inherit preset from default, if needed
   if mappings.preset == 'inherit' and mode ~= 'default' then
-    mappings = vim.tbl_deep_extend('force', config.keymap, mappings)
-    mappings.preset = config.keymap.preset
+    local snapshot = config.snapshot()
+    mappings = vim.tbl_deep_extend('force', snapshot.keymap, mappings)
+    mappings.preset = snapshot.keymap.preset
   end
 
   -- Remove unused keys, but keep keys set to false or empty tables (to disable them)
