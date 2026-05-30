@@ -650,6 +650,22 @@ COMPLETION MENU DRAWING            *blink-cmp-recipes-completion-menu-drawing*
 See the full docs <./configuration/completion.md#menu-draw>
 
 
+DISABLE NERD FONTS ~
+
+Uses text labels for the `kind` of the completion item, at the end of the line,
+instead of icons which require a nerd font.
+
+>lua
+    completion = {
+      menu = {
+        draw = {
+          columns = { { 'label', 'label_description', gap = 1 }, { 'kind' } }
+        }
+      }
+    }
+<
+
+
 KIND ICON BACKGROUND ~
 
 You’ll need to configure your highlights (`BlinkCmpKind` or
