@@ -43,6 +43,7 @@ function cmdline:get_completions(context, callback)
   local is_buffer_completion = vim.tbl_contains(constants.completion_types.buffer, completion_type)
   local is_filename_modifier_completion = utils.contains_filename_modifiers(context.line, completion_type)
   local is_wildcard_completion = utils.contains_wildcard(context.line)
+  local is_man_completion = completion_type == '' and context.line:match('^Man ')
 
   local should_split_path = (is_path_completion or is_buffer_completion)
     and not is_filename_modifier_completion
@@ -84,6 +85,11 @@ function cmdline:get_completions(context, callback)
       -- Special case for help where we read all the tags ourselves
       if completion_type == 'help' then
         return require('blink.cmp.sources.cmdline.help').get_completions(current_arg_prefix)
+      end
+      -- Special case for :Man, builtin completion is lazy and only becomes meaningful
+      -- once there is at least one character after the space.
+      if is_man_completion and current_arg ~= '' then
+        return require('blink.cmp.sources.cmdline.man').get_completions(current_arg, context.line)
       end
 
       local completions = {}
@@ -316,7 +322,7 @@ function cmdline:get_completions(context, callback)
 
       callback({
         is_incomplete_backward = completion_type ~= 'help',
-        is_incomplete_forward = false,
+        is_incomplete_forward = is_man_completion and current_arg == '' or false,
         items = items,
         ---@diagnostic disable-next-line: missing-return
       })
