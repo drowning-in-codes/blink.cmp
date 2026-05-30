@@ -110,6 +110,7 @@ function keymap.get_mappings(keymap_config, mode)
 end
 
 function keymap.setup()
+  local config = config.snapshot()
   -- Load keymaps per mode
   keymap.mappings = {
     default = keymap.get_mappings(config.keymap, 'default'),
