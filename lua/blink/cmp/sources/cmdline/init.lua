@@ -26,9 +26,7 @@ function cmdline.new()
 end
 
 ---@return boolean
-function cmdline:enabled()
-  return vim.bo.ft == 'vim' or (utils.is_command_line({ ':', '@' }) and not utils.in_ex_search_commands())
-end
+function cmdline:enabled() return vim.bo.ft == 'vim' or utils.is_command_line({ ':', '@' }) end
 
 ---@return table
 function cmdline:get_trigger_characters() return { ' ', '.', '#', '&', '-', '=', '/', ':', '!', '%', '~' } end
