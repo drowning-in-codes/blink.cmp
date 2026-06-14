@@ -1,10 +1,8 @@
-local success, err = pcall(require, 'blink.lib')
-if not success then
-  error('blink.cmp v2 requires blink.lib ("saghen/blink.lib") installed via your package manager: ' .. err)
-end
 if vim.fn.has('nvim-0.12') == 0 then error('blink.cmp v2 requires nvim 0.12+, consider pinning to v1') end
 
-local lib = require('blink.lib')
+local success, lib = pcall(require, 'blink.lib')
+if not success then error('blink.cmp v2 requires "saghen/blink.lib" installed via your package manager: ' .. lib) end
+
 local logger = require('blink.cmp.logger')
 local config = require('blink.cmp.config')
 local native = require('blink.lib.native.managed').new({
