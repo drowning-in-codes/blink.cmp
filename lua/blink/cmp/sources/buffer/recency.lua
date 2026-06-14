@@ -14,7 +14,7 @@ function recency.start_tracking()
     desc = 'Track buffer recency when entering a buffer',
     callback = function()
       local bufnr = nvim.get_current_buf()
-      recency.bufs[bufnr] = vim.loop.hrtime()
+      recency.bufs[bufnr] = vim.uv.hrtime()
     end,
   })
 

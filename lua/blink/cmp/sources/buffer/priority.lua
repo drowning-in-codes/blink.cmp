@@ -16,7 +16,7 @@ end
 
 function priority.recency()
   local recency = require('blink.cmp.sources.buffer.recency')
-  local time = vim.loop.hrtime()
+  local time = vim.uv.hrtime()
   return function(bufnr) return time - recency.accessed_at(bufnr) end
 end
 
