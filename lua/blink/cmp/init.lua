@@ -100,6 +100,13 @@ function cmp.library_available() return native:library_available() end
 --- @param opts? { force?: boolean, dev?: boolean }
 --- @return blink.lib.Task
 function cmp.build(opts)
+  -- On first install, lazy.nvim fires the build hook before adding the plugin to rtp.
+  -- Ensure blink.cmp is in the rtp so blink.lib can resolve properly.
+  -- See https://github.com/folke/lazy.nvim/issues/1806
+  if not vim.tbl_contains(vim.api.nvim_list_runtime_paths(), native.repo_root) then
+    vim.opt.runtimepath:append(native.repo_root)
+  end
+
   return native:build(
     { 'cargo', 'build', '--release' },
     function(repo_root, platform)
