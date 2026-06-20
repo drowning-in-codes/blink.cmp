@@ -101,6 +101,9 @@ function ghost_text.draw_preview()
   local typed_length = math.max(0, math.min(vim.fn.strchars(typed_text), vim.fn.strchars(text_edit.newText)))
   local untyped_text = vim.fn.strcharpart(text_edit.newText, typed_length)
   local display_lines = vim.split(untyped_text, '\n', { plain = true })
+  if config.show_first_line_only and #display_lines > 1 then
+    display_lines = { display_lines[1] .. ' [+' .. #display_lines - 1 .. ']' }
+  end
 
   local virt_lines = {}
   for i = 2, #display_lines do

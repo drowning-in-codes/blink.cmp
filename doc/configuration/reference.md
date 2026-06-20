@@ -341,6 +341,8 @@ completion.ghost_text = {
   show_with_menu = true,
   -- Show the ghost text when the menu is closed
   show_without_menu = true,
+  -- Only show the first line of ghost text for multi-line suggestions
+  show_first_line_only = false,
 },
 ```
 
