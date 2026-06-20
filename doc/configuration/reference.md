@@ -175,7 +175,7 @@ completion.menu = {
   max_height = 10,
   border = nil, -- Defaults to `vim.o.winborder` on nvim 0.11+
   winblend = 0,
-  winhighlight = 'Normal:BlinkCmpMenu,FloatBorder:BlinkCmpMenuBorder,CursorLine:BlinkCmpMenuSelection,Search:None',
+  winhighlight = 'Normal:BlinkCmpMenu,FloatBorder:BlinkCmpMenuBorder,CursorLine:BlinkCmpMenuSelection,Search:None,CurSearch:None',
   -- Keep the cursor X lines away from the top/bottom of the window
   scrolloff = 2,
   -- Note that the gutter will be disabled when border ~= 'none'

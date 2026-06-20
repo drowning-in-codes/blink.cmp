@@ -22,7 +22,7 @@ return {
   border = { nil, { 'table', 'string', 'nil' } },
   winblend = { 0, 'number' },
   winhighlight = {
-    'Normal:BlinkCmpMenu,FloatBorder:BlinkCmpMenuBorder,CursorLine:BlinkCmpMenuSelection,Search:None',
+    'Normal:BlinkCmpMenu,FloatBorder:BlinkCmpMenuBorder,CursorLine:BlinkCmpMenuSelection,Search:None,CurSearch:None',
     'string',
   },
   -- keep the cursor X lines away from the top/bottom of the window
