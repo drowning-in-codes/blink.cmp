@@ -140,11 +140,15 @@ function utils.smart_split(line, is_path_completion)
   return line, vim.split(trimmed, ' ', { plain = true })
 end
 
---- Find the longest match for a given set of patterns
+--- Get the leading command-line range prefix, if any
 --- @param str string
---- @param patterns string[]
 --- @return string
-function utils.longest_match(str, patterns)
+function utils.get_range_prefix(str)
+  local patterns = {
+    "^%s*'<%s*,%s*'>%s*", -- Visual range, e.g. '<,>'
+    '^%s*%d+%s*,%s*%d+%s*', -- Numeric range, e.g. 3,5
+    '^%s*[%p]+%s*', -- One or more punctuation characters, e.g. % or .,$
+  }
   local best = ''
   for _, pat in ipairs(patterns) do
     local m = str:match(pat)
