@@ -147,6 +147,7 @@ function utils.get_range_prefix(str)
   local patterns = {
     "^%s*'<%s*,%s*'>%s*", -- Visual range, e.g. '<,>'
     '^%s*%d+%s*,%s*%d+%s*', -- Numeric range, e.g. 3,5
+    "^%s*'%a%s*,%s*'%a%s*", -- Marks, e.g. 'a,'b
     '^%s*[%p]+%s*', -- One or more punctuation characters, e.g. % or .,$
   }
   local best = ''
