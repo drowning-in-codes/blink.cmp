@@ -30,7 +30,6 @@ function cmdline:get_completions(context, callback)
   local is_filename_modifier_completion = utils.contains_filename_modifiers(context.line, completion_type)
   local is_wildcard_completion = utils.contains_wildcard(context.line)
   local is_man_completion = completion_type == '' and context.line:match('^Man ')
-  local is_range_prefix = false
 
   local should_split_path = (is_path_completion or is_buffer_completion)
     and not is_filename_modifier_completion
@@ -51,12 +50,15 @@ function cmdline:get_completions(context, callback)
 
   local line_pos = context.pos.row
   local start_pos = #text_before_argument + #leading_spaces
+
   -- Skip leading command range when computing start_pos
+  local range_prefix --- @type string?
   if arg_number == 1 and completion_type == 'command' then
-    local range_prefix = utils.get_range_prefix(current_arg)
-    start_pos = start_pos + #range_prefix
-    -- The text edit start moves forward if more of the range is typed, so cached items become stale
-    is_range_prefix = range_prefix ~= '' and #range_prefix == #current_arg
+    range_prefix = utils.get_range_prefix(current_arg)
+    if range_prefix then
+      start_pos = start_pos + #range_prefix
+      current_arg_prefix = range_prefix
+    end
   end
   local replace_end_pos = math.min(start_pos + #current_arg, context.bounds.start_col + context.bounds.length - 1)
 
@@ -312,7 +314,7 @@ function cmdline:get_completions(context, callback)
 
       callback({
         is_incomplete_backward = completion_type ~= 'help',
-        is_incomplete_forward = (is_man_completion and current_arg == '') or is_range_prefix,
+        is_incomplete_forward = (is_man_completion and current_arg == '') or range_prefix ~= nil,
         items = items,
       })
     end)

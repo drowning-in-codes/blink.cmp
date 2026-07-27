@@ -27,5 +27,33 @@ return {
     buffer = { 'buffer', 'diff_buffer' },
     path = { 'dir', 'dir_in_path', 'file', 'file_in_path', 'runtime' },
   },
+  range_address_patterns = {
+    -- Numeric/offsets
+    '%d+[+-]?%d*', -- 1, 5+4, 5-4
+    '[+-]%d+', -- +5, -5
+    -- Special
+    '[.$][+-]?%d*', -- ., $, .+2, $-1
+    -- Marks
+    "'[a-zA-Z0-9][+-]?%d*",
+    "'%[[+-]?%d*",
+    "'%][+-]?%d*",
+    "''[+-]?%d*",
+    '\'"[+-]?%d*',
+    "'%^[+-]?%d*",
+    "'%.[+-]?%d*",
+    "'%([+-]?%d*",
+    "'%)[+-]?%d*",
+    "'{[+-]?%d*",
+    "'}[+-]?%d*",
+    "'<[+-]?%d*",
+    "'>[+-]?%d*",
+    -- Previous search/substitute
+    '\\/[+-]?%d*',
+    '\\%?[+-]?%d*',
+    '\\&[+-]?%d*',
+    -- Forward/backward search
+    '/[^/]*/[+-]?%d*',
+    '%?[^%?]*%?[+-]?%d*',
+  },
 }
 -- spellchecker:on

@@ -2,6 +2,21 @@ local nvim = require('blink.lib.nvim')
 local constants = require('blink.cmp.sources.cmdline.constants')
 local path_lib = require('blink.cmp.sources.path.lib')
 local reg_modifier = vim.regex([[\v(\s+|'|")((\%|#\d*|\<\w+\>)(:(h|p|t|r|e|s|S|gs|\~|\.)?)*)\<?(\s+|'|"|$)]])
+-- Build once the list of common range patterns, see :h cmdline-ranges
+local range_patterns = {
+  "^%s*'<%s*,%s*'>%s*", -- Visual range
+  '^%s*[%%%*]%s*', -- Shortcuts % and *
+}
+for _, addr in ipairs(constants.range_address_patterns) do
+  -- Single address
+  table.insert(range_patterns, '^%s*' .. addr .. '%s*')
+  -- Two-address range
+  for _, other in ipairs(constants.range_address_patterns) do
+    for _, separator in ipairs({ ',', ';' }) do
+      table.insert(range_patterns, '^%s*' .. addr .. '%s*' .. separator .. '%s*' .. other .. '%s*')
+    end
+  end
+end
 
 local utils = {}
 
@@ -142,18 +157,12 @@ end
 
 --- Get the leading command-line range prefix, if any
 --- @param str string
---- @return string
+--- @return string?
 function utils.get_range_prefix(str)
-  local patterns = {
-    "^%s*'<%s*,%s*'>%s*", -- Visual range, e.g. '<,>'
-    '^%s*%d+%s*,%s*%d+%s*', -- Numeric range, e.g. 3,5
-    "^%s*'%a%s*,%s*'%a%s*", -- Marks, e.g. 'a,'b
-    '^%s*[%p]+%s*', -- One or more punctuation characters, e.g. % or .,$
-  }
-  local best = ''
-  for _, pat in ipairs(patterns) do
+  local best --- @type string?
+  for _, pat in ipairs(range_patterns) do
     local m = str:match(pat)
-    if m and #m > #best then best = m end
+    if m and (not best or #m > #best) then best = m end
   end
   return best
 end
