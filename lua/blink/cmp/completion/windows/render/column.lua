@@ -1,3 +1,5 @@
+---@alias blink.cmp.DrawColumnDefinition { [integer]: string, gap?: integer, overlap_components?: boolean }
+---
 --- @class blink.cmp.DrawColumn
 --- @field component_names string[]
 --- @field components blink.cmp.DrawComponent[]
@@ -56,7 +58,7 @@ function column:render(context, ctxs)
     for _, max_component_width in ipairs(max_component_widths) do
       column_width = column_width + max_component_width + self.gap
     end
-    column_width = math.max(column_width - self.gap, 0)
+    column_width = math.floor(math.max(column_width - self.gap, 0))
   end
 
   --- find the component that will fill the empty space
@@ -74,6 +76,7 @@ function column:render(context, ctxs)
     end
     line_width = line_width - self.gap
     local remaining_width = column_width - line_width
+    ---@cast remaining_width integer
     local fill_spaces = text_lib.distr_spaces(remaining_width, #fill_idxs)
     for i, idx in ipairs(fill_idxs) do
       line[idx] = line[idx] .. string.rep(' ', fill_spaces[i])

@@ -102,9 +102,9 @@ local function accept(ctx, item, callback)
     -- and use the item as-is
     :catch(function() return item end)
     :map(function(resolved_item)
+      ---@cast resolved_item blink.cmp.CompletionItem
       -- Updates the text edit based on the cursor position and converts it to utf-8
       resolved_item = vim.deepcopy(resolved_item)
-      ---@cast resolved_item blink.cmp.CompletionItem
       resolved_item.textEdit = text_edits_lib.get_from_item(resolved_item)
 
       return sources.execute(
@@ -118,7 +118,7 @@ local function accept(ctx, item, callback)
       require('blink.cmp.signature.trigger').show_if_on_trigger_character()
       callback()
     end)
-    :catch(function(err) logger:notify(vim.log.levels.ERROR, err) end)
+    :catch(function(err) logger:notify(vim.log.levels.ERROR, tostring(err)) end)
 end
 
 return accept

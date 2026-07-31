@@ -25,7 +25,7 @@ function renderer.new(draw)
 
   local self = setmetatable({}, { __index = renderer })
   self.padding = padding
-  self.gap = draw.gap
+  self.gap = draw.gap or 0
   self.def = draw
 
   -- Setting highlights is slow and we update on every keystroke so we instead use a decoration provider
@@ -33,8 +33,8 @@ function renderer.new(draw)
   -- like nvim-cmp does, which breaks on UIs like neovide
   nvim.set_decoration_provider(ns, {
     on_win = function(_, _, win_bufnr) return self.bufnr == win_bufnr end,
-    on_line = function(_, _, _, line)
-      local offset = self.padding[1] or 0
+    on_line = function(_, _, bufnr, line)
+      local offset = self.padding and self.padding[1] or 0
       for _, column in ipairs(self.columns) do
         local text = column:get_line_text(line + 1)
         if #text > 0 then
@@ -42,7 +42,7 @@ function renderer.new(draw)
           for _, highlight in ipairs(highlights) do
             local col = offset + highlight[1]
             local end_col = offset + highlight[2]
-            nvim.buf_set_extmark(self.bufnr, ns, line, col, {
+            nvim.buf_set_extmark(bufnr, ns, line, col, {
               end_col = end_col,
               hl_group = highlight.group,
               hl_mode = 'combine',
@@ -61,12 +61,15 @@ function renderer.new(draw)
 end
 
 function renderer:get_columns(context, draw)
+  local render_column = require('blink.cmp.completion.windows.render.column')
+
   local columns = draw.columns
   if type(columns) == 'function' then columns = columns(context) end
   --- @cast columns blink.cmp.DrawColumnDefinition[]
 
-  --- @type blink.cmp.DrawComponent[][]
+  --- @type blink.cmp.DrawColumn[]
   local columns_definitions = vim.tbl_map(function(column)
+    --- @type blink.cmp.DrawComponent[]
     local components = {}
     for _, component_name in ipairs(column) do
       local component = draw.components and draw.components[component_name]
@@ -78,18 +81,11 @@ function renderer:get_columns(context, draw)
       components = components,
       gap = column.gap or 0,
       overlap_components = column.overlap_components or false,
-    }
+    } --[[@as blink.cmp.DrawColumn]]
   end, columns)
 
   return vim.tbl_map(
-    function(column_definition)
-      return require('blink.cmp.completion.windows.render.column').new(
-        column_definition.component_names,
-        column_definition.components,
-        column_definition.gap,
-        column_definition.overlap_components
-      )
-    end,
+    function(col) return render_column.new(col.component_names, col.components, col.gap, col.overlap_components) end,
     columns_definitions
   )
 end
