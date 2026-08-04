@@ -14,13 +14,13 @@ local EXACT_MATCH_BONUS = 4
 local MATCHING_CASE_BONUS = 4
 
 local DELIMITERS = {
-  [string.byte(' ', 1)] = true,
-  [string.byte('/', 1)] = true,
-  [string.byte('.', 1)] = true,
-  [string.byte(',', 1)] = true,
-  [string.byte('_', 1)] = true,
-  [string.byte('-', 1)] = true,
-  [string.byte(':', 1)] = true,
+  [(' '):byte()] = true,
+  [('/'):byte()] = true,
+  [('.'):byte()] = true,
+  [(','):byte()] = true,
+  [('_'):byte()] = true,
+  [('-'):byte()] = true,
+  [(':'):byte()] = true,
 }
 
 local function is_letter(char) return char >= 65 and char <= 90 or char >= 97 and char <= 122 end
@@ -42,6 +42,8 @@ local function match(needle, haystack)
     local needle_upper_char = is_lower and needle_char - 32 or needle_char
 
     local haystack_start_idx = haystack_idx
+    local found = false
+
     while haystack_idx <= (#haystack - #needle + needle_idx) do
       local haystack_char = string.byte(haystack, haystack_idx)
 
@@ -66,16 +68,14 @@ local function match(needle, haystack)
 
         has_matched = true
         haystack_idx = haystack_idx + 1
-        goto continue
+        found = true
+        break
       end
 
       haystack_idx = haystack_idx + 1
     end
 
-    -- didn't find a match, so return nil
-    if true then return end
-
-    ::continue::
+    if not found then return end
   end
 
   local exact = needle == haystack

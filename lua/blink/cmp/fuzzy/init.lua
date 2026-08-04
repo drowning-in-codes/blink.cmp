@@ -25,11 +25,7 @@ function fuzzy.init_db()
   if fuzzy.has_init_db then return end
 
   fuzzy.implementation.init_db(config.fuzzy.frecency.path)
-
-  nvim.create_autocmd('VimLeavePre', {
-    callback = fuzzy.implementation.destroy_db,
-  })
-
+  nvim.create_autocmd('VimLeavePre', { callback = fuzzy.implementation.destroy_db })
   fuzzy.has_init_db = true
 end
 
@@ -62,30 +58,19 @@ function fuzzy.access(item)
   }
 
   -- writing to the db takes ~10ms, so schedule writes in another thread
-  local encode
-  if jit and package.preload['string.buffer'] then
-    encode = require('string.buffer').encode
-  else
-    encode = vim.mpack.encode
-  end
-
+  local codec = jit and package.preload['string.buffer'] and require('string.buffer') or vim.mpack
   local lib_name, lib_path = require('blink.cmp.fuzzy').get_lib()
+
   vim.uv
     .new_work(function(itm, libname, libpath)
-      local decode
-      if jit and package.preload['string.buffer'] then
-        decode = require('string.buffer').decode
-      else
-        decode = vim.mpack.decode
-      end
-
+      local codec_uv = jit and package.preload['string.buffer'] and require('string.buffer') or vim.mpack
       local loader, err = package.loadlib(libpath, 'luaopen_' .. libname)
       assert(loader, err)
 
       local rust = loader()
-      rust.access(decode(itm))
+      rust.access(codec_uv.decode(itm))
     end, function() end)
-    :queue(encode(trimmed_item), lib_name, lib_path)
+    :queue(codec.encode(trimmed_item), lib_name, lib_path)
 end
 
 ---@param lines string
