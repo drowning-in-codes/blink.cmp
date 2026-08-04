@@ -143,10 +143,11 @@ function fuzzy.fuzzy(line, cursor_col, haystacks_by_provider, range)
   -- add items to the final list
   local filtered_items = {}
   for idx, provider_idx in ipairs(provider_idxs) do
-    local provider_id = provider_ids[provider_idx + 1]
+    local provider_id = assert(provider_ids[provider_idx + 1])
     local haystack = haystacks_by_provider[provider_id]
+    local haystack_idx = assert(matched_indices[idx]) + 1
 
-    local item = haystack[matched_indices[idx] + 1]
+    local item = assert(haystack[haystack_idx])
     item.score = scores[idx]
     item.exact = exacts[idx]
 
