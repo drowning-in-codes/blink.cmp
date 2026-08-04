@@ -1,6 +1,6 @@
 --- @param needle string
 --- @param haystack string
---- @return number[]
+--- @return integer[]
 local function match_indices(needle, haystack)
   local matched_indices = {}
 

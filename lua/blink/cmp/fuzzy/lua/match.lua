@@ -62,6 +62,7 @@ local function match(needle, haystack)
           score = score + PREFIX_BONUS
         elseif haystack_idx == 2 and not has_matched and not is_letter(string.byte(haystack, 1)) then
           score = score + OFFSET_PREFIX_BONUS
+        ---@diagnostic disable-next-line: unnecessary-if
         elseif DELIMITERS[string.byte(haystack, haystack_idx - 1)] then
           score = score + DELIMITER_BONUS
         end

@@ -14,6 +14,7 @@ local fuzzy = {
 
 --- @param implementation 'lua' | 'rust'
 function fuzzy.set_implementation(implementation)
+  ---@diagnostic disable-next-line: unnecessary-assert
   assert(implementation == 'lua' or implementation == 'rust', 'Invalid fuzzy implementation: ' .. implementation)
 
   fuzzy.implementation_type = implementation
@@ -63,6 +64,8 @@ function fuzzy.access(item)
 
   vim.uv
     .new_work(function(itm, libname, libpath)
+      ---@cast itm string
+      ---@diagnostic disable-next-line: duplicate-require
       local codec_uv = jit and package.preload['string.buffer'] and require('string.buffer') or vim.mpack
       local loader, err = package.loadlib(libpath, 'luaopen_' .. libname)
       assert(loader, err)
@@ -114,6 +117,7 @@ function fuzzy.fuzzy(line, cursor_col, haystacks_by_provider, range)
 
   -- get sorts list if sorts is a function
   local sorts_list = type(config.fuzzy.sorts) == 'function' and config.fuzzy.sorts() or config.fuzzy.sorts
+  ---@cast sorts_list blink.cmp.Sort[]
 
   -- sort in rust if none of the sort functions are lua functions
   local sort_in_rust = fuzzy.implementation_type == 'rust'
