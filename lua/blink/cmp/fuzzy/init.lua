@@ -37,8 +37,9 @@ function fuzzy.get_lib()
   local native = require('blink.lib.native')
   local commit = native.try_git_commit(cmp.get_repo_root())
   local name = cmp.get_library_name()
+  local lib_path = assert(native.resolve(name, commit), 'Unable to find the rust library path')
 
-  return name, native.resolve(name, commit)
+  return name, lib_path
 end
 
 ---@param item blink.cmp.CompletionItem
