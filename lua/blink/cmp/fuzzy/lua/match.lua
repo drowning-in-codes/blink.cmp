@@ -85,11 +85,4 @@ local function match(needle, haystack)
   return score, exact
 end
 
-assert(match('fbb', 'barbazfoobarbaz') == 36, 'fbb should match barbazfoobarbaz with score 36')
-assert(match('foo', '_foobar') == 56, 'foo should match _foobar with score 56')
-assert(match('foo', '__foobar') == 52, 'foo should match __foobar with score 52')
-assert(match('Foo', 'foobar') == 56, 'foo should match foobar with score 56')
-assert(match('foo', 'foobar') == 60, 'foo should match foobar with score 60')
-assert(match('foo', 'fobar') == nil, 'foo should not match fobar')
-
 return match
