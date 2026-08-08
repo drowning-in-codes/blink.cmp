@@ -223,19 +223,20 @@ function buffer_events:suppress_events_for_callback(cb)
   local pos_after = utils.get_vim_pos_cursor(0)
   local changed_tick_after = nvim.buf_get_changedtick(0)
 
-  local is_insert_mode = nvim.get_mode().mode:sub(1, 1) == 'i'
+  local mode = nvim.get_mode().mode:sub(1, 1)
+  local is_insert_or_replace_mode = mode == 'i' or mode == 'R'
 
-  self.ignore_next_text_changed = changed_tick_before ~= changed_tick_after and is_insert_mode
+  self.ignore_next_text_changed = changed_tick_before ~= changed_tick_after and is_insert_or_replace_mode
 
   -- HACK: the cursor may move from position (1, 1) to (1, 0) and back to (1, 1) during the callback
   -- This will trigger a CursorMovedI event, but we can't detect it simply by checking the cursor position
   -- since they're equal before vs after the callback. So instead, we always mark the cursor as ignored in
-  -- insert mode, but if the cursor was equal, we undo the ignore after a small delay, which practically guarantees
-  -- that the CursorMovedI event will fire
+  -- insert or replace mode, but if the cursor was equal, we undo the ignore after a small delay,
+  -- which practically guarantees that the CursorMovedI event will fire
   -- TODO: It could make sense to override the nvim_win_set_cursor function and mark as ignored if it's called
   -- on the current buffer
   local cursor_moved = pos_after ~= pos_before
-  self.ignore_next_cursor_moved = is_insert_mode
+  self.ignore_next_cursor_moved = is_insert_or_replace_mode
   if not cursor_moved then vim.defer_fn(function() self.ignore_next_cursor_moved = false end, 10) end
 end
 
