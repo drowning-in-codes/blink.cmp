@@ -370,7 +370,8 @@ end
 function list.accept(opts)
   opts = opts or {}
 
-  if not list.context then return false end
+  local ctx = list.context
+  if not ctx then return false end
 
   local idx = opts.index or list.selected_item_idx
   if not idx then return false end
@@ -379,8 +380,8 @@ function list.accept(opts)
   if not item then return false end
 
   list.undo_preview()
-  require('blink.cmp.completion.accept')(list.context, item, function()
-    list.accept_emitter:emit({ item = item, context = list.context })
+  require('blink.cmp.completion.accept')(ctx, item, function()
+    list.accept_emitter:emit({ item = item, context = ctx })
     if opts.callback then opts.callback() end
   end)
 
