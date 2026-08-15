@@ -41,7 +41,7 @@ local sources = {
   completions_queue = nil,
   providers = {},
   per_filetype_provider_ids = {},
-  completions_emitter = require('blink.cmp.lib.event_emitter').new('source_completions'),
+  completions_emitter = require('blink.cmp.lib.event_emitter').new('source_completions') --[[@as blink.cmp.EventEmitter<blink.cmp.SourceCompletionsEvent>]],
 }
 
 function sources.get_all_providers()

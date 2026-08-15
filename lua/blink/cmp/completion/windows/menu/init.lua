@@ -5,9 +5,9 @@
 --- @field selected_item_idx? integer
 --- @field context blink.cmp.Context?
 --- @field auto_show blink.cmp.CompletionMenuAutoShow
---- @field open_emitter blink.cmp.EventEmitter<{}>
---- @field close_emitter blink.cmp.EventEmitter<{}>
---- @field position_update_emitter blink.cmp.EventEmitter<{}>
+--- @field open_emitter blink.cmp.EventEmitter<nil>
+--- @field close_emitter blink.cmp.EventEmitter<nil>
+--- @field position_update_emitter blink.cmp.EventEmitter<nil>
 ---
 --- @field open_with_items fun(context: blink.cmp.Context, items: blink.cmp.CompletionItem[])
 --- @field open_loading fun(context: blink.cmp.Context)
@@ -62,9 +62,9 @@ local menu = {
     timer_key = '',
   },
 
-  open_emitter = event_emitter.new('completion_menu_open', 'BlinkCmpMenuOpen'),
-  close_emitter = event_emitter.new('completion_menu_close', 'BlinkCmpMenuClose'),
-  position_update_emitter = event_emitter.new('completion_menu_position_update', 'BlinkCmpMenuPositionUpdate'),
+  open_emitter = event_emitter.new('completion_menu_open', 'BlinkCmpMenuOpen') --[[@as blink.cmp.EventEmitter<nil>]],
+  close_emitter = event_emitter.new('completion_menu_close', 'BlinkCmpMenuClose') --[[@as blink.cmp.EventEmitter<nil>]],
+  position_update_emitter = event_emitter.new('completion_menu_position_update', 'BlinkCmpMenuPositionUpdate') --[[@as blink.cmp.EventEmitter<nil>]],
 }
 
 nvim.create_autocmd({ 'CursorMovedI', 'WinScrolled', 'WinResized' }, {

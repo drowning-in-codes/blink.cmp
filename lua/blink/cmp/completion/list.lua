@@ -72,19 +72,20 @@
 
 local lib = require('blink.lib')
 local context = require('blink.cmp.completion.trigger.context')
+local event_emitter = require('blink.cmp.lib.event_emitter')
 
 --- @type blink.cmp.CompletionList
 --- @diagnostic disable-next-line: missing-fields
 local list = {
-  select_emitter = require('blink.cmp.lib.event_emitter').new('select', 'BlinkCmpListSelect'),
-  accept_emitter = require('blink.cmp.lib.event_emitter').new('accept', 'BlinkCmpAccept'),
-  show_emitter = require('blink.cmp.lib.event_emitter').new('show', 'BlinkCmpShow'),
-  hide_emitter = require('blink.cmp.lib.event_emitter').new('hide', 'BlinkCmpHide'),
   config = require('blink.cmp.config').completion.list,
   context = nil,
   items = {},
   is_explicitly_selected = false,
   preview_undo = nil,
+  select_emitter = event_emitter.new('select', 'BlinkCmpListSelect') --[[@as blink.cmp.EventEmitter<blink.cmp.CompletionListSelectEvent>]],
+  accept_emitter = event_emitter.new('accept', 'BlinkCmpAccept') --[[@as blink.cmp.EventEmitter<blink.cmp.CompletionListAcceptEvent>]],
+  show_emitter = event_emitter.new('show', 'BlinkCmpShow') --[[@as blink.cmp.EventEmitter<blink.cmp.CompletionListShowEvent>]],
+  hide_emitter = event_emitter.new('hide', 'BlinkCmpHide') --[[@as blink.cmp.EventEmitter<blink.cmp.CompletionListHideEvent>]],
 }
 
 ---------- State ----------

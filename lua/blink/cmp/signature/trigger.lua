@@ -4,9 +4,6 @@
 -- we update the context's re-trigger counter.
 -- TODO: ensure this always calls *after* the completion trigger to avoid increasing latency
 
-local nvim = require('blink.lib.nvim')
-local utils = require('blink.cmp.lib.utils')
-
 --- @class blink.cmp.SignatureHelpContext
 --- @field id integer
 --- @field bufnr integer
@@ -20,7 +17,7 @@ local utils = require('blink.cmp.lib.utils')
 --- @field current_context_id integer
 --- @field context? blink.cmp.SignatureHelpContext
 --- @field show_emitter blink.cmp.EventEmitter<{ context: blink.cmp.SignatureHelpContext }>
---- @field hide_emitter blink.cmp.EventEmitter<{}>
+--- @field hide_emitter blink.cmp.EventEmitter<nil>
 --- @field buffer_events? blink.cmp.BufferEvents
 ---
 --- @field activate fun()
@@ -34,6 +31,7 @@ local utils = require('blink.cmp.lib.utils')
 --- @field trigger_character? string
 --- @field force? boolean
 
+local nvim = require('blink.lib.nvim')
 local root_config = require('blink.cmp.config')
 local config = require('blink.cmp.config').signature.trigger
 local utils = require('blink.cmp.lib.utils')
@@ -45,8 +43,8 @@ local trigger = {
   current_context_id = -1,
   --- @type blink.cmp.SignatureHelpContext?
   context = nil,
-  show_emitter = require('blink.cmp.lib.event_emitter').new('signature_help_show'),
-  hide_emitter = require('blink.cmp.lib.event_emitter').new('signature_help_hide'),
+  show_emitter = require('blink.cmp.lib.event_emitter').new('signature_help_show') --[[@as blink.cmp.EventEmitter<{ context: blink.cmp.SignatureHelpContext }>]],
+  hide_emitter = require('blink.cmp.lib.event_emitter').new('signature_help_hide') --[[@as blink.cmp.EventEmitter<nil>]],
 }
 
 function trigger.activate()

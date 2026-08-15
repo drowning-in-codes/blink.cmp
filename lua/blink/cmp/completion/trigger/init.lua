@@ -10,7 +10,7 @@
 --- @field current_context_id integer
 --- @field context? blink.cmp.Context
 --- @field show_emitter blink.cmp.EventEmitter<{ context: blink.cmp.Context }>
---- @field hide_emitter blink.cmp.EventEmitter<{}>
+--- @field hide_emitter blink.cmp.EventEmitter<nil>
 ---
 --- @field activate fun()
 --- @field resubscribe fun() Effectively ensures that our autocmd listeners run last, after other registered listeners
@@ -38,8 +38,8 @@ local fuzzy = require('blink.cmp.fuzzy')
 --- @diagnostic disable-next-line: missing-fields
 local trigger = {
   current_context_id = -1,
-  show_emitter = require('blink.cmp.lib.event_emitter').new('show'),
-  hide_emitter = require('blink.cmp.lib.event_emitter').new('hide'),
+  show_emitter = require('blink.cmp.lib.event_emitter').new('show') --[[@as blink.cmp.EventEmitter<{ context: blink.cmp.Context }>]],
+  hide_emitter = require('blink.cmp.lib.event_emitter').new('hide') --[[@as blink.cmp.EventEmitter<nil>]],
 }
 
 local function on_char_added(char, is_ignored)
