@@ -59,6 +59,8 @@ function sources.get_enabled_provider_ids(mode)
 
     local providers = config.sources.default
     if type(providers) == 'function' then providers = providers() end
+    -- Auto-enable `cmdline` source for command-line window
+    if mode == 'cmdwin' then table.insert(providers, 'cmdline') end
 
     return lib.list.dedup(providers)
   end
